@@ -108,3 +108,7 @@ test('health: exit equal to a server address, or different from the direct exit;
  assert.equal(exitOk('192.0.2.30',servers,null),true);
  assert.equal(exitOk(null,servers,'198.51.100.1'),false);
 });
+test('v2rayN leniency: first of a host list, relative ws path, allowInsecure in any case',()=>{
+ const o=parse('vless://'+ID+'@example.com:443?type=ws&security=tls&host=a.example.com,b.example.com&path=ws&allowInsecure=True').outbound;
+ assert.deepEqual(o.transport,{type:'ws',path:'/ws',headers:{Host:'a.example.com'}});assert.equal(o.tls.insecure,true);
+});

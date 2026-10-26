@@ -50,6 +50,18 @@ test('foreign boot hook is not overwritten',()=>{
 test('stopController is a no-op without a running controller or lease',async()=>{
  await setup.stopController(C);await setup.stopController(C);
 });
+test('install parks the live runtime so nothing can relaunch it; a failure puts it back, a deploy replaces it',()=>{
+ setup.deploy(C,app);
+ setup.park(C);
+ assert.ok(!fs.existsSync(BASE+'/runtime/launch.cjs')&&fs.existsSync(BASE+'/runtime.parked/launch.cjs'));
+ setup.unpark(C);
+ assert.ok(fs.existsSync(BASE+'/runtime/launch.cjs')&&!fs.existsSync(BASE+'/runtime.parked'));
+ const broken=fakeApp('broken');fs.writeFileSync(broken+'/core/sing-box','tampered');
+ setup.park(C);assert.throws(()=>setup.deploy(C,broken),/core-mismatch/);
+ setup.unpark(C);assert.ok(fs.existsSync(BASE+'/runtime/launch.cjs'));
+ setup.park(C);setup.deploy(C,app);
+ assert.ok(fs.existsSync(BASE+'/runtime/launch.cjs')&&!fs.existsSync(BASE+'/runtime.parked'));
+});
 test('uninstall removes owned files and the hook, keeps the profile unless asked',()=>{
  fs.writeFileSync(BASE+'/profile.json','{}',{mode:0o600});
  const run=args=>JSON.parse(cp.execFileSync(process.execPath,[path.join(BASE,'runtime/uninstall.cjs'),...args],{env:process.env,encoding:'utf8'}));

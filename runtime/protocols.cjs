@@ -16,7 +16,7 @@ const DOMAIN=/^(?=.{1,253}$)[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9])?(\.[a-z0-9_]([a-
 const IPV4=/^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 function fail(code,detail){const e=Error(code+(detail?': '+detail:''));e.code=code;return e;}
 const str=v=>typeof v==='string'?v:typeof v==='number'||typeof v==='boolean'?String(v):'';
-function dec(v){try{return decodeURIComponent(str(v));}catch{throw fail('invalid-link');}}
+function dec(v){try{return decodeURIComponent(str(v));}catch{throw fail('invalid-link','percent-encoding');}}
 function text(v,what,max=256){v=str(v);if(!v||v.length>max||/[\x00-\x1f\x7f]/.test(v))throw fail('invalid-link',what);return v;}
 // IPv6 servers cannot work: the TV kernel has no IPv6 policy routing, so external IPv6 is blocked.
 // Case is kept as given: profile ids hash the outbound, and earlier versions stored hosts unchanged.
@@ -24,7 +24,7 @@ function host(v,what='server'){v=str(v);if(v.startsWith('[')||v.includes(':'))th
 function port(v){const n=Number(v);if(!/^\d{1,5}$/.test(str(v))||n<1||n>65535)throw fail('invalid-link','port');return n;}
 function uuid(v){v=str(v);if(!UUID.test(v))throw fail('invalid-link','uuid');return v;}
 function path(v){v=str(v);if(v.length>512||!v.startsWith('/')||/[\x00-\x20\x7f]/.test(v))throw fail('invalid-link','path');return v;}
-function bool(v,what){if(v===true||v===false)return v;if(['1','true'].includes(str(v)))return true;if(['','0','false'].includes(str(v)))return false;throw fail('invalid-link',what);}
+function bool(v,what){if(v===true||v===false)return v;v=str(v).trim().toLowerCase();if(['1','true'].includes(v))return true;if(['','0','false'].includes(v))return false;throw fail('invalid-link',what);}
 function oneOf(v,list,what,code='unsupported-settings'){if(!list.includes(v))throw fail(code,what);return v;}
 function only(o,keys,what){if(!o||typeof o!=='object'||Array.isArray(o))throw fail('invalid-link',what);for(const k of Object.keys(o))if(!keys.includes(k))throw fail('unsupported-settings',what+'.'+k);return o;}
 function alpn(v){const list=Array.isArray(v)?v:str(v).split(',');const out=list.map(s=>str(s).trim()).filter(Boolean);if(out.some(s=>!/^[a-z0-9./-]{1,32}$/i.test(s)))throw fail('invalid-link','alpn');return out;}
@@ -124,14 +124,16 @@ function xrayTransport(q){
  if(CORE_MISSING.has(type))throw fail('unsupported-by-core',type);
  if(type==='tcp'||type==='raw'){if(q.headerType&&q.headerType!=='none')throw fail('unsupported-settings','headerType');if(q.path||q.serviceName)throw fail('unsupported-settings','tcp path');return undefined;}
  if(q.headerType&&q.headerType!=='none')throw fail('unsupported-settings','headerType');
+ // As in v2rayN: the first of a comma-separated host list, and a path is always absolute.
+ const host=q.host&&q.host.split(',')[0].trim(),slash=p=>p&&!p.startsWith('/')?'/'+p:p;
  if(type==='ws'){
-  const out={type:'ws'};let p=q.path||'';
+  const out={type:'ws'};let p=slash(q.path||'');
   // Xray puts early data in the path ("/ws?ed=2048"); sing-box takes it as separate fields.
   const m=p.match(/^([^?]*)\?ed=(\d{1,5})$/);if(m){p=m[1];out.max_early_data=Number(m[2]);out.early_data_header_name='Sec-WebSocket-Protocol';}
-  if(p)out.path=p;if(q.host)out.headers={Host:q.host};return out;
+  if(p)out.path=p;if(host)out.headers={Host:host};return out;
  }
  if(type==='grpc'){if(q.mode&&q.mode!=='gun')throw fail('unsupported-settings','grpc mode');return {type:'grpc',...(q.serviceName&&{service_name:q.serviceName})};}
- if(type==='httpupgrade')return {type:'httpupgrade',...(q.host&&{host:q.host}),...(q.path&&{path:q.path})};
+ if(type==='httpupgrade')return {type:'httpupgrade',...(host&&{host}),...(q.path&&{path:slash(q.path)})};
  throw fail('unsupported-settings','type '+type);
 }
 function xrayTls(q,security){
@@ -142,7 +144,7 @@ function xrayTls(q,security){
  return {enabled:true,...(q.sni&&{server_name:q.sni}),...(bool(q.allowInsecure||'','allowInsecure')&&{insecure:true}),...(q.alpn&&{alpn:q.alpn}),
   ...(q.fp&&{utls:{enabled:true,fingerprint:q.fp}}),...(security==='reality'&&{reality:{enabled:true,public_key:q.pbk,short_id:q.sid||''}})};
 }
-function url(uri){try{return new URL(uri);}catch{throw fail('invalid-link');}}
+function url(uri){try{return new URL(uri);}catch{throw fail('invalid-link','url syntax');}}
 const XRAY=['type','security','sni','fp','alpn','pbk','sid','spx','host','path','serviceName','mode','headerType','allowInsecure'];
 const LINKS={
  vless(uri){
@@ -160,7 +162,7 @@ const LINKS={
  // vmess:// + base64 of the v2rayN JSON object.
  vmess(uri){
   const body=uri.slice(8).split('#')[0];let j;
-  try{j=JSON.parse(Buffer.from(body.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8'));}catch{throw fail('invalid-link');}
+  try{j=JSON.parse(Buffer.from(body.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8'));}catch{throw fail('invalid-link','vmess json');}
   only(j,['v','ps','add','port','id','aid','scy','net','type','host','path','tls','sni','alpn','fp','allowInsecure'],'vmess');
   const net=str(j.net||'tcp').toLowerCase(),security=str(j.tls||'none').toLowerCase()||'none';
   const q={type:net,...(j.type&&j.type!=='none'&&net==='tcp'&&{headerType:str(j.type)}),...(j.host&&{host:str(j.host)}),...(j.path&&(net==='grpc'?{serviceName:str(j.path)}:{path:str(j.path)})),...(net==='grpc'&&j.type&&j.type!=='none'&&{mode:str(j.type)}),
@@ -173,7 +175,7 @@ const LINKS={
   const hash=uri.indexOf('#'),label=hash<0?'':uri.slice(hash+1);let rest=uri.slice(5,hash<0?undefined:hash);
   const qs=rest.indexOf('?');let query='';if(qs>=0){query=rest.slice(qs+1);rest=rest.slice(0,qs);}rest=rest.replace(/\/$/,'');
   const b64=s=>{const d=Buffer.from(s.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8');return /^[\x20-\x7e]+$/.test(d)?d:null;};
-  if(!rest.includes('@')){rest=b64(rest);if(!rest||!rest.includes('@'))throw fail('invalid-link');}
+  if(!rest.includes('@')){rest=b64(rest);if(!rest||!rest.includes('@'))throw fail('invalid-link','ss base64');}
   const at=rest.lastIndexOf('@'),user=rest.slice(0,at),addr=rest.slice(at+1);
   const plain=(()=>{try{return decodeURIComponent(user);}catch{return '';}})(),creds=plain.includes(':')?plain:b64(user)||'';
   const colon=creds.indexOf(':');if(colon<1)throw fail('invalid-link','userinfo');

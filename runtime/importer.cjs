@@ -8,6 +8,8 @@ const USB=process.env.TVVPN_USB_ROOT||'/tmp/usb';
 function fail(code){const e=Error(code);e.code=code;return e;}
 const REASONS=['invalid-link','unsupported-protocol','unsupported-settings','unsupported-by-core','skip'];
 function reason(e){return REASONS.includes(e&&e.code)?e.code:'invalid-link';}
+// events.log gets the scheme and protocols.cjs's code and detail, which name fields only, never values.
+function note(kind,e){if(reason(e)!=='skip')C.log('link-rejected '+kind+' '+(REASONS.includes(e&&e.code)?String(e.message).replace(/[^\w .:+\/-]/g,'').slice(0,80):'internal'));return reason(e);}
 function base64(text){
  const s=text.replace(/\s+/g,'');if(!/^[A-Za-z0-9+/_-]+=*$/.test(s))return null;
  const out=Buffer.from(s.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8');return out.includes('://')?out:null;
@@ -19,14 +21,14 @@ function scan(text){
  if(text[0]==='{'){
   let j;try{j=JSON.parse(text);}catch{found.rejected.push('unrecognized-format');return found;}
   const list=Array.isArray(j.outbounds)?j.outbounds:j.type?[j]:[];if(!list.length)found.rejected.push('unrecognized-format');
-  for(const o of list)try{found.profiles.push(fromOutbound(o));}catch(e){const r=reason(e);if(r!=='skip')found.rejected.push(r);}
+  for(const o of list)try{found.profiles.push(fromOutbound(o));}catch(e){const r=note('json',e);if(r!=='skip')found.rejected.push(r);}
   return found;
  }
  const lines=(text.includes('://')?text:base64(text)||'').split(/\r?\n/).map(l=>l.trim()).filter(l=>l&&!l.startsWith('#'));
  if(!lines.length)found.rejected.push('unrecognized-format');
  for(const line of lines){
   if(/^https?:\/\//i.test(line))found.urls.push(line);
-  else if(SCHEMES.test(line))try{found.profiles.push(parse(line));}catch(e){found.rejected.push(reason(e));}
+  else if(SCHEMES.test(line))try{found.profiles.push(parse(line));}catch(e){found.rejected.push(note(line.match(SCHEMES)[1].toLowerCase(),e));}
   else found.rejected.push(/^[a-z][a-z0-9+.-]*:\/\//i.test(line)?'unsupported-protocol':'unrecognized-format');
  }
  return found;
