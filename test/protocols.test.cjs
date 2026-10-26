@@ -17,9 +17,9 @@ test('VLESS: none / tls, ws with early data, grpc, httpupgrade',()=>{
   {type:'vless',tag:'proxy',server:'example.com',server_port:443,uuid:ID,tls:{enabled:true,server_name:'example.com',alpn:['h2'],utls:{enabled:true,fingerprint:'firefox'}},transport:{type:'grpc',service_name:'svc'}});
  assert.deepEqual(parse('vless://'+ID+'@example.com:443?type=httpupgrade&security=tls&host=example.com&path=%2Fup&flow=').outbound.transport,{type:'httpupgrade',host:'example.com',path:'/up'});
  assert.equal(parse('vless://'+ID+'@example.com:443?security=tls&flow=xtls-rprx-vision').outbound.flow,'xtls-rprx-vision');
- // Reality over gRPC is valid Xray; Reality needs a server name.
+ // Reality over gRPC is valid Xray. Without sni (as v2rayN accepts) the core picks the server name itself.
  assert.equal(parse('vless://'+ID+'@192.0.2.1:443?type=grpc&security=reality&pbk='+KEY+'&sni=example.com').outbound.tls.utls.fingerprint,'chrome');
- code(()=>parse('vless://'+ID+'@192.0.2.1:443?security=reality&pbk='+KEY),'invalid-link');
+ assert.deepEqual(parse('vless://'+ID+'@192.0.2.1:443?security=reality&pbk='+KEY+'&sni=&flow=xtls-rprx-vision').outbound.tls,{enabled:true,utls:{enabled:true,fingerprint:'chrome'},reality:{enabled:true,public_key:KEY,short_id:''}});
 });
 test('VMess (v2rayN base64 JSON) with ws + TLS, and plain TCP',()=>{
  const p=parse('vmess://'+b64({v:'2',ps:'VM',add:'example.com',port:'443',id:ID,aid:'0',scy:'auto',net:'ws',type:'none',host:'cdn.example.com',path:'/v',tls:'tls',sni:'cdn.example.com',fp:'chrome',alpn:''}));

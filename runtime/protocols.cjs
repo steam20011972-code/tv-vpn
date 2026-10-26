@@ -52,7 +52,8 @@ function tls(t,{required=false,reality=false}={}){
  const u=t.utls===undefined?null:only(t.utls,['enabled','fingerprint'],'utls'),r=t.reality===undefined?null:only(t.reality,['enabled','public_key','short_id'],'reality');
  if(r&&r.enabled===true){
   if(!reality)throw fail('unsupported-settings','reality');
-  if(!out.server_name)throw fail('invalid-link','sni');if(out.insecure||out.disable_sni)throw fail('unsupported-settings','reality');
+  // No server name: like Xray, the core sends the server's domain, or no SNI for an IP (the Reality server may allow "").
+  if(out.insecure||out.disable_sni)throw fail('unsupported-settings','reality');
   // Reality needs uTLS; chrome is sing-box's default fingerprint.
   out.utls={enabled:true,fingerprint:oneOf(str(u&&u.fingerprint)||'chrome',FINGERPRINTS,'fingerprint')};
   if(!/^[A-Za-z0-9_-]{43}$/.test(str(r.public_key)))throw fail('invalid-link','public_key');
