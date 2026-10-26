@@ -19,7 +19,7 @@ function status(app=APP){
  const c=checks(),lock=readJSON(app+'/core.lock.json',{}),appVersion=(readJSON(app+'/appinfo.json',{})).version||null;
  const installed=readJSON(BASE+'/installed.json');
  const current=!!installed&&installed.version===appVersion&&installed.coreSha256===lock.binarySha256&&fs.existsSync(BASE+'/runtime/supervisor.cjs')&&fs.existsSync(BASE+'/bin/sing-box');
- return {ok:true,checks:c,ready:Object.keys(c).every(k=>c[k]),appVersion,installed:installed&&{version:installed.version},current,profile:fs.existsSync(BASE+'/profile.json')};
+ return {ok:true,checks:c,ready:Object.keys(c).every(k=>c[k]),appVersion,installed:installed&&{version:installed.version},current,profile:fs.existsSync(BASE+'/profile.json')||!!(readJSON(BASE+'/profiles/index.json')||{}).active};
 }
 function request(sock,action){return new Promise(resolve=>{
  const s=net.createConnection(sock);let data='';
