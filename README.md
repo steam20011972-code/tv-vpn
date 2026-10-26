@@ -6,7 +6,7 @@
 
 A VPN client for LG webOS built on [sing-box](https://github.com/SagerNet/sing-box) (ARMv7) and a small controller running on the TV's built-in Node.js. The **MEDZH VPN** app turns a whole-MEDZH VPN on and off, restores the normal network on failure, and can connect automatically when the TV starts.
 
-> **Status: early, developer-only.** Tested on one model (LG 55UA75009LA, webOS 25). Components install from the app itself; the profile is still loaded from a PC over SSH, QR import is in progress.
+> **Status: early, developer-only.** Tested on one model (LG 55UA75009LA, webOS 25). Components install from the app itself; profiles are added from a phone via QR code or from a USB stick.
 
 ## Disclaimer
 
@@ -28,6 +28,16 @@ A VPN client for LG webOS built on [sing-box](https://github.com/SagerNet/sing-b
 3. After an IPK update the app offers "Update components"; profile and settings are kept, and a VPN that was on reconnects.
 
 Without root the app shows "Homebrew Channel with Root OK required".
+
+## Adding profiles
+
+Open the profile card → "Add profile".
+
+- **Phone (QR code).** The phone must be on the same network as the TV. Scan the code, paste a `vless://` link, several links or a subscription URL, and tap "Add". The TV shows how many profiles were added and why others were rejected.
+- **USB stick.** Put the text into `tv-vpn.txt` in the root of the stick (up to 64 KB), plug it into the TV and choose "Load from USB". Delete the file afterwards: it holds your access keys.
+- **Subscriptions.** An `http(s)` URL returning a base64 list, a plain list of links or sing-box JSON (up to 1 MB). The profiles screen has "Refresh" for each subscription; after a TV start, subscriptions older than a day refresh automatically. If the active profile's credentials rotate, it follows the profile with the same name.
+
+While the QR code is shown, the TV runs a small web page on its LAN address: plain HTTP without encryption, only from private networks (10/8, 172.16/12, 192.168/16), at most 10 requests a minute, a 128-bit one-time token in the URL. It closes after the first successful import, after 5 minutes, or when you leave the screen, and it can only add profiles — no routing or settings. Do not use it on a network you do not trust; use USB instead.
 
 ## Development
 
@@ -81,7 +91,7 @@ It disables autostart, stops its own processes, restores DNS and routes, and rem
 
 ## Security
 
-Profiles and keys never go into Git, the IPK, logs or diagnostics; on the TV they are mode 0600. To report a vulnerability see [SECURITY.md](SECURITY.md).
+Profiles, keys and subscription URLs never go into Git, the IPK, logs or diagnostics; on the TV they are mode 0600, and import results show only counts. To report a vulnerability see [SECURITY.md](SECURITY.md).
 
 ## License
 

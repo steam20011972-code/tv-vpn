@@ -18,6 +18,14 @@ The sing-box binary is invoked as a separate process and keeps its own license.
 Whenever this project distributes the binary (for example inside an IPK), the
 binary's LICENSE file is shipped alongside it and the source links above apply.
 
+qrcode-generator 1.4.4 (app/vendor/qrcode.js, unmodified, shipped in the IPK)
+  Copyright (c) 2009 Kazuhiko Arase
+  License: MIT (notice kept in the file header)
+  Project: https://github.com/kazuhikoarase/qrcode-generator
+  npm: qrcode-generator@1.4.4, SHA256 of qrcode.js:
+    18ae399f81182bc9de916e9c77b195df20cc58d6f2d55a62b085a299f1bf1780
+  The word "QR Code" is a registered trademark of DENSO WAVE INCORPORATED.
+
 Development-only dependencies (not shipped on the TV):
   ssh2             MIT  https://github.com/mscdex/ssh2
   @webos-tools/cli Apache-2.0  https://github.com/webos-tools/cli

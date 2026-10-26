@@ -1,6 +1,6 @@
 'use strict';
 const net=require('net'),os=require('os'),C=require('./common.cjs');
-const {config}=require('./profile.cjs'),P=require('./profiles.cjs');
+const {config}=require('./profile.cjs'),P=require('./profiles.cjs'),I=require('./importer.cjs');
 const mode=process.argv[2]||'manual';
 let prefs=C.preferences(),desired=mode==='boot'?prefs.autostart:(mode==='resume'?prefs.desired:false);
 // using: the profile the running core was started with; switching: a select arrived while start/health was busy.
@@ -73,6 +73,38 @@ async function tick(){
  }
 }
 setInterval(()=>tick().catch(()=>fallback('controller-error')),1000);
+// Phone import: a forked one-shot LAN listener (import-server.cjs) recorded in run/import.json for cleanup.
+// importing.url carries the one-time token for the QR code; counters never include links or names.
+const IMPORT=C.BASE+'/runtime/import-server.cjs';let importer=null,importing={state:'idle'};
+function stopImport(){const r=C.read('run/import.json');if(r)C.killOwned(r.pid,r.identity,IMPORT);importer=null;try{C.fs.unlinkSync(C.RUN+'/import.json');}catch{}}
+stopImport();
+// New or replaced profiles: refresh the label; a running VPN follows an active profile whose credentials rotated.
+function imported(r){label();if(state.error==='no-profile'&&state.profile)state.error=null;if(r.activeChanged&&(desired||C.read('run/lease.json'))){reconnect();void tick();}save();}
+function beginImport(){return new Promise(resolve=>{
+ if(importer&&['starting','listening'].includes(importing.state))return resolve();
+ stopImport();
+ const iface=C.command('ip',['-4','route','show','default'],true).match(/\bdev\s+([a-zA-Z0-9_.:-]+)/)?.[1];
+ const localIP=iface&&C.command('ip',['-4','-o','addr','show','dev',iface],true).match(/\binet\s+(\d+\.\d+\.\d+\.\d+)\//)?.[1];
+ if(!localIP){importing={state:'failed',error:'no-network'};return resolve();}
+ const child=C.cp.fork(IMPORT,[localIP],{stdio:['ignore','ignore','ignore','ipc']});
+ importer=child;importing={state:'starting',added:0,updated:0,rejected:{}};
+ C.write('run/import.json',{pid:child.pid,identity:C.processIdentity(child.pid)});
+ const timer=setTimeout(()=>{if(importer===child&&importing.state==='starting'){stopImport();importing={state:'failed',error:'import-failed'};}resolve();},5000);
+ child.on('message',m=>{
+  if(!m||importer!==child)return;
+  if(m.type==='listening'){clearTimeout(timer);importing={...importing,state:'listening',url:m.url,expiresAt:m.expiresAt};C.log('import-open');resolve();}
+  else if(m.type==='import')I.importText(m.text).then(r=>{
+   importing.added+=r.added;importing.updated+=r.updated;for(const k in r.rejected)importing.rejected[k]=(importing.rejected[k]||0)+r.rejected[k];
+   if(r.added||r.updated){importing.state='done';C.log('profiles-imported');}
+   imported(r);try{child.send({type:'result',id:m.id,result:r});}catch{}
+  }).catch(()=>{try{child.send({type:'result',id:m.id,result:{error:'import-failed'}});}catch{}});
+ });
+ child.on('error',()=>{});
+ child.on('exit',()=>{clearTimeout(timer);if(importer!==child)return;importer=null;try{C.fs.unlinkSync(C.RUN+'/import.json');}catch{}
+  importing={...importing,url:null,state:importing.state==='done'?'done':importing.state==='listening'?'expired':'failed'};resolve();});
+});}
+// Subscriptions refresh at most once a day, a minute after boot, outside a connection attempt.
+if(mode==='boot')setTimeout(function stale(){if(busy){setTimeout(stale,15000);return;}I.refreshStale().then(r=>{if(r.added||r.updated||r.removed)C.log('subscriptions-refreshed');imported(r);}).catch(()=>{});},60000);
 const server=net.createServer({allowHalfOpen:true},socket=>{let data='';socket.on('data',b=>{data+=b;if(data.length>1024)socket.destroy();});socket.on('end',()=>{
  let req;try{req=JSON.parse(data);}catch{return socket.end('{"ok":false}\n');}
  const answer=(extra={})=>{save();socket.end(JSON.stringify({ok:true,...C.read('run/status.json'),...extra})+'\n');};
@@ -93,6 +125,11 @@ const server=net.createServer({allowHalfOpen:true},socket=>{let data='';socket.o
   if(!P.remove(req.arg))return refuse('unknown-profile');
   label();C.log('profile-deleted');answer({profiles:P.list()});return;
  }
+ if(req.action==='import-begin'){beginImport().then(()=>answer({import:importing}));return;}
+ if(req.action==='import-status'){answer({import:importing});return;}
+ if(req.action==='import-end'){stopImport();importing={state:'idle'};answer({import:importing});return;}
+ if(req.action==='import-usb'){I.importUsb().then(r=>{imported(r);C.log('usb-import');answer({result:r,profiles:P.list()});}).catch(e=>refuse(e.code||'import-failed'));return;}
+ if(req.action==='refresh-subscription'){I.refresh(req.arg).then(r=>{imported(r);C.log('subscription-refreshed');answer({result:r,profiles:P.list()});}).catch(e=>refuse(e.code||'subscription-failed'));return;}
  }catch{return refuse('profile-store-error');}
  if(req.action==='start'){desired=true;nextTry=0;remember();answer();void tick();}
  else if(req.action==='stop'||req.action==='restore-network'){desired=false;remember();if(!busy){C.cleanup();state={...state,state:'disconnected',healthy:false,error:null};}else state.state='disconnecting';answer();}
@@ -102,5 +139,5 @@ const server=net.createServer({allowHalfOpen:true},socket=>{let data='';socket.o
  else socket.end('{"ok":false,"error":"Invalid action"}\n');
 });socket.on('error',()=>{});});
 server.listen(C.RUN+'/control.sock',()=>{C.fs.chmodSync(C.RUN+'/control.sock',0o600);save();void tick();});
-async function quit(){desired=false;C.cleanup();try{C.fs.unlinkSync(C.RUN+'/control.sock');}catch{}process.exit(0);}
+async function quit(){desired=false;stopImport();C.cleanup();try{C.fs.unlinkSync(C.RUN+'/control.sock');}catch{}process.exit(0);}
 process.on('SIGTERM',quit);process.on('SIGINT',quit);

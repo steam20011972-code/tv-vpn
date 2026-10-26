@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const {parse,config}=require('../tools/profile.cjs');
+const {parse,config}=require('../runtime/profile.cjs');
 const sample='vless://00000000-0000-4000-8000-000000000001@192.0.2.10:8443?type=tcp&encryption=none&security=reality&pbk='+('A'.repeat(43))+'&fp=chrome&sni=example.com&sid=abcd&flow=xtls-rprx-vision#Test';
 test('accepts Reality Vision; preserves endpoint and fingerprint',()=>{const p=parse(sample);assert.equal(p.outbound.server_port,8443);assert.equal(p.outbound.tls.utls.fingerprint,'chrome');});
 test('rejects unsupported, duplicate, invalid identity and transport parameters',()=>{for(const s of [sample+'&x=1',sample.replace('type=tcp','type=xhttp'),sample.replace('sid=abcd','sid=abc'),sample.replace('fp=chrome','fp=chrome&fp=firefox'),sample.replace('security=reality','security=tls'),sample.replace('00000000-0000-4000-8000-000000000001','bad')]){if(s.endsWith('&x=1'))assert.throws(()=>parse(s.replace('#Test&x=1','&x=1#Test')));else assert.throws(()=>parse(s));}});

@@ -15,6 +15,7 @@ Out of scope: sing-box itself (report to [SagerNet/sing-box](https://github.com/
 ## Design rules
 
 - Profiles and secrets stay out of Git, the IPK, logs and diagnostics. TV files holding them use mode 0600.
-- Secrets are never passed on a command line.
+- Secrets are never passed on a command line (subscription URLs reach curl through its config on stdin).
+- The only network listener is the profile import page: started on request, bound to the TV's LAN IPv4, private source addresses only, 128-bit one-time token, 64 KB bodies, 10 requests a minute, closed after one successful import or 5 minutes. It can only add profiles and answers with counts, never echoing links. Traffic to it is unencrypted HTTP inside the LAN.
 - The runtime removes only processes, interfaces, routes and rules it created; stopping is idempotent.
 - The project never modifies TV firmware or system partitions.
