@@ -114,3 +114,9 @@ test('subscription client: v2rayN user agent, stable 0600 device id, empty body 
  const r=await I.importText(SUB,{fetch:fetchFrom({[SUB]:'\uFEFF \n'})});
  assert.deepEqual(r.rejected,{'subscription-no-data':1});assert.equal(P.list().items.length,0);
 });
+test('a rejected link logs its scheme and the failing field, never values',async()=>{
+ reset();
+ await I.importText(link(6,'Bad').replace('sni=example.com','sni=bad_host!.example'));
+ const log=fs.readFileSync(BASE+'/run/events.log','utf8');
+ assert.match(log,/link-rejected vless invalid-link: sni\n/);assert.ok(!log.includes('bad_host')&&!log.includes('00000000-0000-4000-8000-000000000006'));
+});

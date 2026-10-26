@@ -44,6 +44,11 @@ async function stopController(C){
  }
  throw fail('recovery-pending');
 }
+// The open app polls ctl.cjs, which relaunches a stopped controller (so does the watchdog). Moving the installed
+// runtime aside first leaves nothing to relaunch while we stop and replace it; unpark() puts it back after a failure.
+// A running supervisor is unaffected: its code is loaded and ownership checks use its original command line.
+function park(C){const live=C.BASE+'/runtime',parked=C.BASE+'/runtime.parked';if(fs.existsSync(live)){fs.rmSync(parked,{recursive:true,force:true});fs.renameSync(live,parked);}}
+function unpark(C){const live=C.BASE+'/runtime',parked=C.BASE+'/runtime.parked';if(!fs.existsSync(live)&&fs.existsSync(parked))fs.renameSync(parked,live);}
 function freeKiB(dir){try{return Number(cp.execFileSync('df',['-kP',dir],{encoding:'utf8',timeout:4000}).trim().split('\n').pop().split(/\s+/)[3]);}catch{return null;}}
 // Copies runtime, core and boot hook from the app directory into BASE. Idempotent.
 function deploy(C,app=APP){
@@ -63,7 +68,7 @@ function deploy(C,app=APP){
  const fresh=C.BASE+'/runtime.new',live=C.BASE+'/runtime',old=C.BASE+'/runtime.old';
  fs.rmSync(fresh,{recursive:true,force:true});fs.mkdirSync(fresh,{mode:0o700});
  for(const file of fs.readdirSync(app+'/runtime'))if(/\.(cjs|sh)$/.test(file)){fs.copyFileSync(app+'/runtime/'+file,fresh+'/'+file);fs.chmodSync(fresh+'/'+file,file.endsWith('.sh')?0o700:0o600);}
- fs.rmSync(old,{recursive:true,force:true});if(fs.existsSync(live))fs.renameSync(live,old);fs.renameSync(fresh,live);fs.rmSync(old,{recursive:true,force:true});
+ fs.rmSync(old,{recursive:true,force:true});if(fs.existsSync(live))fs.renameSync(live,old);fs.renameSync(fresh,live);fs.rmSync(old,{recursive:true,force:true});fs.rmSync(C.BASE+'/runtime.parked',{recursive:true,force:true});
  const hook=fs.readFileSync(app+'/runtime/70-tv-vpn','utf8');
  if(fs.existsSync(C.HOOK)){const existing=fs.readFileSync(C.HOOK,'utf8');if(existing!==hook&&!existing.includes('/media/developer/tv-vpn/runtime/launch.cjs'))throw fail('hook-conflict');}
  fs.mkdirSync(path.dirname(C.HOOK),{recursive:true});fs.writeFileSync(C.HOOK+'.new',hook,{mode:0o700});fs.renameSync(C.HOOK+'.new',C.HOOK);
@@ -76,8 +81,8 @@ async function install(){
  if(!Object.keys(c).every(k=>c[k]))throw fail('not-ready');
  const C=require('./common.cjs');
  const prefs=C.read('preferences.json');
- const wanted=await stopController(C);
- deploy(C);
+ let wanted;park(C);
+ try{wanted=await stopController(C);deploy(C);}catch(e){unpark(C);throw e;}
  // Autostart stays off on a fresh install; an update keeps the user's choices and reconnects if VPN was on.
  C.write('preferences.json',{autostart:!!(prefs&&prefs.autostart),desired:wanted});
  if(wanted)cp.spawn(process.execPath,[C.BASE+'/runtime/launch.cjs','resume'],{detached:true,stdio:'ignore'}).unref();
@@ -87,11 +92,12 @@ async function install(){
 async function uninstall(deleteProfile){
  if(!checks().root)throw fail('not-root');
  const C=require('./common.cjs');
- await stopController(C);
- try{cp.execFileSync(process.execPath,[__dirname+'/uninstall.cjs',...(deleteProfile?['--delete-profile']:[])],{stdio:'ignore',timeout:30000});}catch{throw fail('uninstall-failed');}
+ park(C);
+ try{await stopController(C);cp.execFileSync(process.execPath,[__dirname+'/uninstall.cjs',...(deleteProfile?['--delete-profile']:[])],{stdio:'ignore',timeout:30000});}
+ catch(e){unpark(C);throw e.code?e:fail('uninstall-failed');}
  return {...status(),ok:true,profileRetained:!deleteProfile};
 }
-module.exports={checks,status,deploy,stopController,install,uninstall};
+module.exports={checks,status,park,unpark,deploy,stopController,install,uninstall};
 if(require.main===module)(async()=>{
  const [action,arg]=process.argv.slice(2);
  if(action==='status')return status();

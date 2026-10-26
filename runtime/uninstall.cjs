@@ -13,7 +13,7 @@ let recovered=false;
 for(let i=0;i<10;i++){if(C.cleanup()){recovered=true;break;}C.command('sleep',['0.5'],true);}
 if(!recovered)throw Error('Recovery incomplete; files retained for recovery');
 // Remove only our explicitly named runtime files. The base directory is retained.
-for(const directory of ['bin','runtime','runtime.new','runtime.old','run']){
+for(const directory of ['bin','runtime','runtime.new','runtime.old','runtime.parked','run']){
  const target=C.BASE+'/'+directory;
  C.fs.rmSync(target,{recursive:true,force:true});
 }
