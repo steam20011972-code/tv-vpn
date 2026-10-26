@@ -8,6 +8,5 @@ const fs=require('fs'),{run,upload}=require('./tv.cjs');
  if(recovered.code)throw Error('Recovery incomplete; runtime not replaced');
  await run('mkdir -p /media/developer/tv-vpn/runtime; chmod 700 /media/developer/tv-vpn/runtime',null,true);
  for(const file of fs.readdirSync('runtime'))if(/\.(cjs|sh)$/.test(file))await upload('runtime/'+file,'/media/developer/tv-vpn/runtime/'+file,file.endsWith('.sh')?'700':'600');
- await upload('tools/profile.cjs','/media/developer/tv-vpn/runtime/profile.cjs','600');
  console.log('Runtime deployed');
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

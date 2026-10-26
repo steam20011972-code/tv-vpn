@@ -3,7 +3,7 @@ const fs=require('fs'),os=require('os'),path=require('path'),cp=require('child_p
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'tvvpn-profiles-'));
 process.env.TVVPN_HOME=path.join(tmp,'base');process.env.TVVPN_HOOK_DIR=path.join(tmp,'init.d');
 fs.mkdirSync(process.env.TVVPN_HOME);
-const C=require('../runtime/common.cjs'),P=require('../runtime/profiles.cjs'),{parse}=require('../tools/profile.cjs');
+const C=require('../runtime/common.cjs'),P=require('../runtime/profiles.cjs'),{parse}=require('../runtime/profile.cjs');
 const BASE=process.env.TVVPN_HOME;
 const link=(n,name)=>'vless://00000000-0000-4000-8000-00000000000'+n+'@192.0.2.1'+n+':8443?type=tcp&encryption=none&security=reality&pbk='+('A'.repeat(43))+'&fp=chrome&sni=example.com&sid=abcd&flow=xtls-rprx-vision#'+name;
 const first=parse(link(1,'Home')),second=parse(link(2,'Backup'));
@@ -40,7 +40,7 @@ test('removing the active profile moves active to the next one, then to none',()
  assert.equal(P.list().active,other);assert.ok(!fs.existsSync(BASE+'/profiles/'+l.active+'.json'));
  assert.equal(P.remove('nothere00'),false);
  assert.equal(P.remove(other),true);
- assert.deepEqual(P.list(),{active:null,items:[]});assert.equal(P.active(),null);
+ assert.deepEqual(P.list(),{active:null,items:[],subscriptions:[]});assert.equal(P.active(),null);
 });
 test('invalid legacy profile is left in place, not imported',()=>{
  fs.writeFileSync(BASE+'/profile.json','{"name":"x"}');

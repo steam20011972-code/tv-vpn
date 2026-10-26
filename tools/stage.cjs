@@ -1,5 +1,5 @@
 'use strict';
-const {load,config}=require('./profile.cjs');
+const {load,config}=require('../runtime/profile.cjs');
 const {run,quote}=require('./tv.cjs');
 (async()=>{
  const active=await run('test ! -f /media/developer/tv-vpn/run/lease.json',null,true);
