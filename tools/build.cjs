@@ -6,7 +6,14 @@ function chunk(type,data){const t=Buffer.from(type),len=Buffer.alloc(4),sum=Buff
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 (async()=>{
 // Original code-rendered launcher icon; no borrowed branding or raster assets.
-const size=160,raw=Buffer.alloc(size*(1+size*4));for(let y=0;y<size;y++){let row=y*(1+size*4);for(let x=0;x<size;x++){let p=row+1+x*4,dx=x-80,dy=y-82,r=Math.hypot(dx,dy);let ring=r>37&&r<45&&!(dy<-15&&Math.abs(dx)<23),stem=Math.abs(dx)<4&&y>28&&y<79;let ink=ring||stem;raw[p]=ink?245:17;raw[p+1]=ink?249:116;raw[p+2]=ink?255:240;raw[p+3]=255;}}
+// The letter M drawn as a route TV → server → internet (same geometry as the header mark, 100-unit grid), antialiased by distance.
+const size=160,k=size/100,raw=Buffer.alloc(size*(1+size*4)),bg=[17,121,245],route=[[22,74],[22,30],[50,58],[78,30],[78,74]];
+const seg=(px,py,[ax,ay],[bx,by])=>{const vx=bx-ax,vy=by-ay,t=Math.max(0,Math.min(1,((px-ax)*vx+(py-ay)*vy)/(vx*vx+vy*vy)));return Math.hypot(px-ax-t*vx,py-ay-t*vy);},cover=d=>Math.max(0,Math.min(1,.5-d*k));
+for(let y=0;y<size;y++){let row=y*(1+size*4);for(let x=0;x<size;x++){let p=row+1+x*4,px=(x+.5)/k,py=(y+.5)/k,d=Infinity;for(let i=1;i<route.length;i++)d=Math.min(d,seg(px,py,route[i-1],route[i]));
+ let ink=Math.max(cover(d-3.5),cover(Math.hypot(px-22,py-74)-8));
+ // Server and internet nodes are rings: blue inside, so the line stops at their edge.
+ for(const [cx,cy,r,w] of [[50,58,6.5,4.5],[78,74,8,5]]){const dc=Math.hypot(px-cx,py-cy),outer=cover(dc-r-w/2),inner=cover(dc-r+w/2);ink=ink*(1-outer)+outer-inner;}
+ for(let c=0;c<3;c++)raw[p+c]=Math.round(bg[c]+(255-bg[c])*ink);raw[p+3]=255;}}
 const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(size,0);ihdr.writeUInt32BE(size,4);ihdr[8]=8;ihdr[9]=6;fs.writeFileSync('app/icon.png',Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',zlib.deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]));
 const core=await fetchCore(),{id,version}=require('../app/appinfo.json');
 // Stage the package: UI, TV runtime (setup.cjs installs it into /media/developer/tv-vpn) and the pinned core.
@@ -23,7 +30,7 @@ const file=`${id}_${version}_all.ipk`;
 const packaged=require('./ipk.cjs').files('dist/'+file);
 const inPkg=name=>{const b=packaged[`usr/palm/applications/${id}/${name}`];if(!b)throw Error('Missing from package: '+name);return b;};
 if(sha(inPkg('core/sing-box'))!==lock.binarySha256)throw Error('Packaged core does not match core.lock.json');
-for(const name of ['runtime/setup.cjs','runtime/supervisor.cjs','runtime/profile.cjs','runtime/protocols.cjs','runtime/profiles.cjs','runtime/importer.cjs','runtime/import-server.cjs','vendor/qrcode.js','runtime/watchdog.sh','runtime/70-tv-vpn','core/LICENSE','core.lock.json'])inPkg(name);
+for(const name of ['runtime/setup.cjs','runtime/supervisor.cjs','runtime/profile.cjs','runtime/protocols.cjs','runtime/profiles.cjs','runtime/importer.cjs','runtime/import-server.cjs','vendor/qrcode.js','fonts/manrope-cyrillic.woff2','fonts/manrope-latin.woff2','fonts/OFL.txt','runtime/watchdog.sh','runtime/70-tv-vpn','core/LICENSE','core.lock.json'])inPkg(name);
 fs.rmSync('dist/stage',{recursive:true,force:true});
 fs.writeFileSync('dist/'+file+'.sha256',sha(fs.readFileSync('dist/'+file))+'  '+file+'\n');
 fs.writeFileSync('dist/build.json',JSON.stringify({version,node:process.version,core:lock.version,coreArch:lock.arch,coreSha256:lock.binarySha256,runtime:'Node.js 16',packages:[file]},null,2));

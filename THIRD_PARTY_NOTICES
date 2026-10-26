@@ -26,6 +26,16 @@ qrcode-generator 1.4.4 (app/vendor/qrcode.js, unmodified, shipped in the IPK)
     18ae399f81182bc9de916e9c77b195df20cc58d6f2d55a62b085a299f1bf1780
   The word "QR Code" is a registered trademark of DENSO WAVE INCORPORATED.
 
+Manrope variable font, weights 400-800 (app/fonts/manrope-cyrillic.woff2 and
+manrope-latin.woff2, unmodified Google Fonts v20 subsets, shipped in the IPK)
+  Copyright 2018 The Manrope Project Authors
+  License: SIL Open Font License 1.1 (full text in app/fonts/OFL.txt)
+  Project: https://github.com/googlefonts/manrope
+  SHA256 of manrope-cyrillic.woff2:
+    c268b459a9329e59fecf39a17618efd44c71735532048d60b12aab76a8c14914
+  SHA256 of manrope-latin.woff2:
+    a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972
+
 Development-only dependencies (not shipped on the TV):
   ssh2             MIT  https://github.com/mscdex/ssh2
   @webos-tools/cli Apache-2.0  https://github.com/webos-tools/cli
