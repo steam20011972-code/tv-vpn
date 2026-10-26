@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TV VPN</title><link rel="stylesheet" href="style.css"></head>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MEDZH VPN</title><link rel="stylesheet" href="style.css"></head>
 <body><div class="shell">
- <header><div class="brand"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="19"/><ellipse cx="24" cy="24" rx="9" ry="19"/><path d="M5 24h38M9 13h30M9 35h30"/></svg>TV VPN</div><div class="header-note">ВАШЕ ПОДКЛЮЧЕНИЕ · НА ТЕЛЕВИЗОРЕ</div><span id="preview" hidden>Предпросмотр</span></header>
- <main>
+ <header><div class="brand"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="19"/><ellipse cx="24" cy="24" rx="9" ry="19"/><path d="M5 24h38M9 13h30M9 35h30"/></svg>MEDZH VPN</div><div class="header-note">ВАШЕ ПОДКЛЮЧЕНИЕ · НА ТЕЛЕВИЗОРЕ</div><span id="preview" hidden>Предпросмотр</span></header>
+ <main id="main" hidden>
   <section class="connection" aria-labelledby="state-title">
    <div id="status-pill" class="pill"><i></i><span id="pill-text">Проверяем соединение</span></div>
    <button id="power" class="power" aria-label="Подключить VPN"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 18v34M28 29a31 31 0 1 0 44 0"/></svg></button>
@@ -18,8 +18,17 @@
    <p class="footnote">При сбое VPN обычный интернет включится автоматически.<br>Домашняя сеть остаётся доступна.</p>
   </aside>
  </main>
+ <main id="setup-screen" class="setup" hidden>
+  <section class="setup-card" aria-labelledby="setup-title">
+   <div class="eyebrow">КОМПОНЕНТЫ MEDZH VPN</div>
+   <h1 id="setup-title">Проверяем телевизор…</h1>
+   <p id="setup-description">Проверяем Homebrew Channel и права root</p>
+   <ul id="setup-checks" class="setup-checks"></ul>
+   <button id="setup-install" class="dialog-button" data-action="check">Проверить снова</button>
+  </section>
+ </main>
  <footer><span><kbd>OK</kbd> Выбрать <span class="footer-gap"><kbd>← ↑ ↓ →</kbd> Переместить фокус</span></span><span>Закрытие приложения не отключает VPN</span></footer>
 </div>
-<div id="dialog" class="dialog-backdrop" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><div class="eyebrow">TV VPN</div><h2 id="dialog-title">Диагностика</h2><div id="dialog-content"></div><button id="dialog-close" class="dialog-button">Понятно</button></section></div>
+<div id="dialog" class="dialog-backdrop" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><div class="eyebrow">MEDZH VPN</div><h2 id="dialog-title">Диагностика</h2><div id="dialog-content"></div><div id="dialog-actions" class="dialog-actions"></div></section></div>
 <div id="toast" class="toast" role="status" hidden></div>
 <script src="app.js"></script></body></html>

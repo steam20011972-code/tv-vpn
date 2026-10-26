@@ -1,12 +1,12 @@
-# TV VPN
+# MEDZH VPN
 
 **Requires a rooted LG webOS TV with Homebrew Channel reporting "Root OK".** Without root it cannot work: webOS does not let regular apps create a TUN device or change routes and DNS.
 
 [Русский](README.ru.md)
 
-A VPN client for LG webOS built on [sing-box](https://github.com/SagerNet/sing-box) (ARMv7) and a small controller running on the TV's built-in Node.js. The **TV VPN** app turns a whole-TV VPN on and off, restores the normal network on failure, and can connect automatically when the TV starts.
+A VPN client for LG webOS built on [sing-box](https://github.com/SagerNet/sing-box) (ARMv7) and a small controller running on the TV's built-in Node.js. The **MEDZH VPN** app turns a whole-MEDZH VPN on and off, restores the normal network on failure, and can connect automatically when the TV starts.
 
-> **Status: early, developer-only.** Tested on one model (LG 55UA75009LA, webOS 25). Installation currently runs from a PC over SSH; in-app installation and QR profile import are in progress.
+> **Status: early, developer-only.** Tested on one model (LG 55UA75009LA, webOS 25). Components install from the app itself; the profile is still loaded from a PC over SSH, QR import is in progress.
 
 ## Disclaimer
 
@@ -21,9 +21,17 @@ A VPN client for LG webOS built on [sing-box](https://github.com/SagerNet/sing-b
 - All TV IPv4 traffic goes through the VPN; DNS uses DoH inside the tunnel. External IPv6 is blocked while connected. The LAN stays reachable.
 - If the server is unreachable, the controller restores the normal network and retries with back-off up to 5 minutes. An independent watchdog restores the network if the controller hangs.
 
-## Installation (developers)
+## Installation
 
-Requirements: Node.js 18+, `tar`, root SSH access to the TV over LAN, the TV host key in `~/.ssh/known_hosts`.
+1. Install the IPK `io.github.steam20011972-code.tvvpn_<version>_all.ipk` (Homebrew Channel, `ares-install` or `node tools/install-app.cjs`).
+2. Open MEDZH VPN. The app checks root, `/dev/net/tun`, `ip rule`, ConnMan and Node.js and offers "Install components". The sing-box core and controller are copied from the package into `/media/developer/tv-vpn` (modes 0700/0600); the core hash is checked against `core.lock.json`. Autostart is off by default.
+3. After an IPK update the app offers "Update components"; profile and settings are kept, and a VPN that was on reconnects.
+
+Without root the app shows "Homebrew Channel with Root OK required".
+
+## Development
+
+Requirements: Node.js 18+, root SSH access to the TV over LAN, the TV host key in `~/.ssh/known_hosts`.
 
 ```sh
 npm install
@@ -31,13 +39,10 @@ export TV_HOST=<TV IP address>
 export TV_SSH_PASSWORD=<root password>   # current process environment only
 ```
 
-1. Download [sing-box-1.14.3-linux-armv7.tar.gz](https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-linux-armv7.tar.gz) into `downloads/`, verify the SHA256 from [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) and unpack it.
-2. `node tools/tv.cjs exec "mkdir -p /media/developer/tv-vpn/bin; chmod 700 /media/developer/tv-vpn"`
-3. `node tools/tv.cjs upload downloads/sing-box-1.14.3-linux-armv7/sing-box /media/developer/tv-vpn/bin/sing-box 700`
-4. Profile: `TVVPN_PROFILE_FILE=path/to/file node tools/stage.cjs`, or pipe the link via stdin. Keep that file outside the repository and delete it afterwards.
-5. `node tools/deploy-runtime.cjs`, then `npm test` and `npm run build`.
-6. `node tools/install-app.cjs` installs the IPK and launches the app.
-7. Check a manual connection. Autostart: `node tools/set-autostart.cjs on`.
+- `npm test`; `npm run build` downloads the core pinned in `core.lock.json` (`tools/fetch-core.cjs`, SHA256-checked), builds the IPK with runtime and core, and verifies the core hash inside the package.
+- `node tools/install-app.cjs` installs the IPK and launches the app.
+- Profile: `TVVPN_PROFILE_FILE=path/to/file node tools/stage.cjs`, or pipe the link via stdin. Keep that file outside the repository and delete it afterwards.
+- Without the app: `node tools/deploy-runtime.cjs` (runtime) and `node tools/set-autostart.cjs on|off`; install over SSH with `/usr/bin/node /media/developer/apps/usr/palm/applications/<id>/runtime/setup.cjs install|status`.
 
 ## Controls
 
@@ -66,11 +71,13 @@ Disable autostart permanently:
 
 ## Uninstall
 
+In the app: "Status and diagnostics" → "Remove MEDZH VPN completely", then choose whether to keep the profile. Or over SSH:
+
 ```sh
 /usr/bin/node /media/developer/tv-vpn/runtime/uninstall.cjs
 ```
 
-It disables autostart, stops its own processes, restores DNS and routes, and removes the components. The profile is kept (mode 0600); add `--delete-profile` to remove it too. Then remove the TV VPN icon from the TV app menu.
+It disables autostart, stops its own processes, restores DNS and routes, and removes the components. The profile is kept (mode 0600); add `--delete-profile` to remove it too. Then remove the MEDZH VPN icon from the TV app menu.
 
 ## Security
 

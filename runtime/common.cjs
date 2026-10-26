@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('fs'),cp=require('child_process'),path=require('path');
 const BASE=process.env.TVVPN_HOME||'/media/developer/tv-vpn',RUN=BASE+'/run';
+const HOOK=(process.env.TVVPN_HOOK_DIR||'/var/lib/webosbrew/init.d')+'/70-tv-vpn';
 fs.mkdirSync(RUN,{recursive:true,mode:0o700});
 function read(name,fallback=null){try{return JSON.parse(fs.readFileSync(BASE+'/'+name,'utf8'));}catch{return fallback;}}
 function write(name,value){const p=BASE+'/'+name;fs.writeFileSync(p+'.tmp',JSON.stringify(value),{mode:0o600});fs.renameSync(p+'.tmp',p);}
@@ -12,6 +13,8 @@ function rules(){return command('ip',['-4','rule','show']).split('\n').filter(Bo
 function preferences(){return read('preferences.json',{autostart:false,desired:false});}
 function dnsProperties(service){const s=command('connmanctl',['services',service]);const m=s.match(/Nameservers\.Configuration\s*=\s*\[([^\]]*)\]/);if(!m)throw Error('Cannot read configured DNS');return m[1].split(/[,\s]+/).filter(Boolean);}
 function service(){const s=command('connmanctl',['services']);const line=s.split('\n').find(l=>/^\*A[OR]/.test(l));const id=line&&line.trim().split(/\s+/).pop();if(!id||!(/^(wifi|ethernet)_[a-zA-Z0-9_]+$/.test(id)))throw Error('No active ConnMan service');return id;}
+// Files created earlier were observed as 0777 on the TV; restore private modes for our own paths.
+function harden(){for(const [p,mode] of [['',0o700],['/bin',0o700],['/bin/sing-box',0o700],['/runtime',0o700],['/run',0o700],['/profile.json',0o600],['/config.json',0o600],['/preferences.json',0o600],['/installed.json',0o600]])try{fs.chmodSync(BASE+p,mode);}catch{}}
 function log(event){const p=RUN+'/events.log';try{if(fs.existsSync(p)&&fs.statSync(p).size>65536){try{fs.unlinkSync(p+'.1');}catch{}fs.renameSync(p,p+'.1');}fs.appendFileSync(p,new Date().toISOString()+' '+event+'\n',{mode:0o600});}catch{}}
 function cleanup(){
  let lock=false;try{fs.mkdirSync(RUN+'/recovery.lock');lock=true;}catch{
@@ -49,4 +52,4 @@ function cleanup(){
   return ok;
  }finally{if(lock)try{fs.rmSync(RUN+'/recovery.lock',{recursive:true,force:true});}catch{}}
 }
-module.exports={fs,cp,BASE,RUN,read,write,command,processIdentity,ownedProcess,killOwned,rules,preferences,dnsProperties,service,log,cleanup};
+module.exports={fs,cp,BASE,RUN,HOOK,read,write,command,processIdentity,ownedProcess,killOwned,rules,preferences,dnsProperties,service,harden,log,cleanup};

@@ -1,4 +1,4 @@
-# TV VPN — contributor and agent notes
+# MEDZH VPN — contributor and agent notes
 
 VPN client for rooted LG webOS TVs: webOS app in `app/`, TV controller in `runtime/`, PC developer tools in `tools/`.
 

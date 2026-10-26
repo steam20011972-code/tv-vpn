@@ -1,8 +1,8 @@
 {
   "id": "io.github.steam20011972-code.tvvpn",
-  "version": "0.1.0",
-  "vendor": "TV VPN contributors",
-  "title": "TV VPN",
+  "version": "0.2.0",
+  "vendor": "MEDZH VPN contributors",
+  "title": "MEDZH VPN",
   "icon": "icon.png",
   "largeIcon": "icon.png",
   "main": "index.html",
