@@ -1,11 +1,14 @@
 'use strict';
 const net=require('net'),os=require('os'),C=require('./common.cjs');
-const {config}=require('./profile.cjs');
+const {config}=require('./profile.cjs'),P=require('./profiles.cjs');
 const mode=process.argv[2]||'manual';
 let prefs=C.preferences(),desired=mode==='boot'?prefs.autostart:(mode==='resume'?prefs.desired:false);
-let state={state:'disconnected',healthy:false,error:null,autostart:prefs.autostart,profile:C.read('profile.json')?.name||'VPN'},core=null,busy=false,failures=0,retry=0,nextTry=0,lastHealth=0;
+// using: the profile the running core was started with; switching: a select arrived while start/health was busy.
+let state={state:'disconnected',healthy:false,error:null,autostart:prefs.autostart,profile:null,profileKind:null},core=null,busy=false,failures=0,retry=0,nextTry=0,lastHealth=0,using=null,switching=false;
 const old=C.read('run/supervisor.json');if(old&&C.ownedProcess(old.pid,old.identity,C.BASE+'/runtime/supervisor.cjs'))process.exit(0);
 C.harden();
+function label(){const item=P.activeItem();state.profile=item?item.name:null;state.profileKind=item?item.kind:null;}
+try{label();}catch{}
 // ConnMan may not be ready when Homebrew starts us. Keep the controller alive
 // and retry recovery before acquiring a new lease instead of losing autostart.
 if(!C.cleanup()){state.state='fallback';state.error='recovery-pending';}
@@ -16,14 +19,14 @@ function heartbeat(){try{C.fs.writeFileSync(C.RUN+'/heartbeat',String(Math.floor
 heartbeat();setInterval(heartbeat,2000);
 function remember(){prefs.desired=desired;C.write('preferences.json',prefs);save();}
 function health(){return new Promise(resolve=>{
- const start=Date.now();C.cp.execFile('curl',['-4','--silent','--show-error','--max-time','7','https://www.cloudflare.com/cdn-cgi/trace'],{timeout:8500,maxBuffer:8192},(err,out)=>{const profile=C.read('profile.json');const ip=out&&out.match(/^ip=(.+)$/m)?.[1];resolve(!err&&ip===profile.outbound.server?{ok:true,exitMatchesServer:true,latency:Date.now()-start}:{ok:false});});
+ const start=Date.now();C.cp.execFile('curl',['-4','--silent','--show-error','--max-time','7','https://www.cloudflare.com/cdn-cgi/trace'],{timeout:8500,maxBuffer:8192},(err,out)=>{const ip=out&&out.match(/^ip=(.+)$/m)?.[1];resolve(!err&&using&&ip===using.outbound.server?{ok:true,exitMatchesServer:true,latency:Date.now()-start}:{ok:false});});
 });}
 function fallback(error){C.cleanup();core=null;state={...state,state:'fallback',healthy:false,error};failures=0;retry++;nextTry=Date.now()+Math.min(300000,10000*Math.pow(2,Math.min(retry-1,5)));C.log(error);save();}
 async function start(){
  if(busy||!desired||state.state==='connected')return;busy=true;state.state='connecting';state.error=null;save();
  try{
   if(!C.cleanup())throw Error('recovery-pending');
-  const profile=C.read('profile.json');if(!profile)throw Error('invalid-profile');state.profile=profile.name;
+  const profile=P.active();label();if(!profile)throw Error('no-profile');using=profile;
   const route=C.command('ip',['-4','route','show','default']);const iface=route.match(/\bdev\s+([a-zA-Z0-9_.:-]+)/)?.[1];if(!iface)throw Error('no-network');
   if(C.rules().some(l=>{const n=parseInt(l);return n>=18000&&n<18100;}))throw Error('route-conflict');
   if(C.command('ip',['-4','route','show','table','20220'],true))throw Error('route-conflict');
@@ -48,11 +51,14 @@ async function start(){
   const check=await health();if(!check.ok)throw Error('connection-failed');
   if(!desired){C.cleanup();state.state='disconnected';state.healthy=false;return;}
   state={...state,state:'connected',healthy:true,error:null,latency:check.latency,exitMatchesServer:check.exitMatchesServer,connectedAt:Date.now(),ipv6:'blocked-external'};retry=0;nextTry=0;failures=0;lastHealth=Date.now();C.log('connected');
- }catch(e){fallback(e.message);if(e.message==='invalid-profile'){desired=false;remember();}}
+ }catch(e){fallback(e.message);if(e.message==='invalid-profile'||e.message==='no-profile'){desired=false;remember();}}
  finally{busy=false;save();}
 }
+// Profile switch: drop the current connection (if any) and let tick() start again with the newly active profile.
+function reconnect(){if(busy){switching=true;return;}switching=false;C.cleanup();core=null;state={...state,state:'disconnected',healthy:false,error:null};retry=0;nextTry=0;save();}
 async function tick(){
  if(busy)return;
+ if(switching){reconnect();if(!desired)return;}
  if(!desired&&C.read('run/lease.json')){C.cleanup();core=null;state={...state,state:'disconnected',healthy:false,error:null};save();return;}
  if(desired&&state.state!=='connected'&&Date.now()>=nextTry){await start();return;}
  if(state.state==='connected'){
@@ -69,7 +75,25 @@ async function tick(){
 setInterval(()=>tick().catch(()=>fallback('controller-error')),1000);
 const server=net.createServer({allowHalfOpen:true},socket=>{let data='';socket.on('data',b=>{data+=b;if(data.length>1024)socket.destroy();});socket.on('end',()=>{
  let req;try{req=JSON.parse(data);}catch{return socket.end('{"ok":false}\n');}
- const answer=()=>{save();socket.end(JSON.stringify({ok:true,...C.read('run/status.json')})+'\n');};
+ const answer=(extra={})=>{save();socket.end(JSON.stringify({ok:true,...C.read('run/status.json'),...extra})+'\n');};
+ const refuse=error=>socket.end(JSON.stringify({ok:false,error})+'\n');
+ try{
+ // Profile actions never return secrets: list() holds only id, name and protocol label.
+ if(req.action==='profiles'){label();answer({profiles:P.list()});return;}
+ if(req.action==='select'){
+  if(P.list().active===req.arg){answer({profiles:P.list()});return;}
+  if(!P.select(req.arg))return refuse('unknown-profile');
+  label();C.log('profile-selected');
+  // A running or pending connection moves to the new profile; a stopped VPN stays stopped.
+  if(desired||C.read('run/lease.json')){reconnect();void tick();}
+  answer({profiles:P.list()});return;
+ }
+ if(req.action==='delete'){
+  if(P.list().active===req.arg&&(desired||C.read('run/lease.json')))return refuse('profile-in-use');
+  if(!P.remove(req.arg))return refuse('unknown-profile');
+  label();C.log('profile-deleted');answer({profiles:P.list()});return;
+ }
+ }catch{return refuse('profile-store-error');}
  if(req.action==='start'){desired=true;nextTry=0;remember();answer();void tick();}
  else if(req.action==='stop'||req.action==='restore-network'){desired=false;remember();if(!busy){C.cleanup();state={...state,state:'disconnected',healthy:false,error:null};}else state.state='disconnecting';answer();}
  else if(req.action==='set-autostart'&&['on','off'].includes(req.arg)){prefs.autostart=req.arg==='on';remember();answer();}

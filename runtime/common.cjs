@@ -14,7 +14,8 @@ function preferences(){return read('preferences.json',{autostart:false,desired:f
 function dnsProperties(service){const s=command('connmanctl',['services',service]);const m=s.match(/Nameservers\.Configuration\s*=\s*\[([^\]]*)\]/);if(!m)throw Error('Cannot read configured DNS');return m[1].split(/[,\s]+/).filter(Boolean);}
 function service(){const s=command('connmanctl',['services']);const line=s.split('\n').find(l=>/^\*A[OR]/.test(l));const id=line&&line.trim().split(/\s+/).pop();if(!id||!(/^(wifi|ethernet)_[a-zA-Z0-9_]+$/.test(id)))throw Error('No active ConnMan service');return id;}
 // Files created earlier were observed as 0777 on the TV; restore private modes for our own paths.
-function harden(){for(const [p,mode] of [['',0o700],['/bin',0o700],['/bin/sing-box',0o700],['/runtime',0o700],['/run',0o700],['/profile.json',0o600],['/config.json',0o600],['/preferences.json',0o600],['/installed.json',0o600]])try{fs.chmodSync(BASE+p,mode);}catch{}}
+function harden(){for(const [p,mode] of [['',0o700],['/bin',0o700],['/bin/sing-box',0o700],['/runtime',0o700],['/run',0o700],['/profile.json',0o600],['/config.json',0o600],['/preferences.json',0o600],['/installed.json',0o600],['/profiles',0o700]])try{fs.chmodSync(BASE+p,mode);}catch{}
+ try{for(const f of fs.readdirSync(BASE+'/profiles'))if(f.endsWith('.json'))fs.chmodSync(BASE+'/profiles/'+f,0o600);}catch{}}
 function log(event){const p=RUN+'/events.log';try{if(fs.existsSync(p)&&fs.statSync(p).size>65536){try{fs.unlinkSync(p+'.1');}catch{}fs.renameSync(p,p+'.1');}fs.appendFileSync(p,new Date().toISOString()+' '+event+'\n',{mode:0o600});}catch{}}
 function cleanup(){
  let lock=false;try{fs.mkdirSync(RUN+'/recovery.lock');lock=true;}catch{

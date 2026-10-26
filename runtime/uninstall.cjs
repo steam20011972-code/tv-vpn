@@ -18,5 +18,5 @@ for(const directory of ['bin','runtime','runtime.new','runtime.old','run']){
  C.fs.rmSync(target,{recursive:true,force:true});
 }
 for(const file of ['config.json','preferences.json','installed.json','tv-vpn.ipk'])try{C.fs.unlinkSync(C.BASE+'/'+file);}catch{}
-if(process.argv.includes('--delete-profile'))try{C.fs.unlinkSync(C.BASE+'/profile.json');}catch{}
+if(process.argv.includes('--delete-profile')){try{C.fs.unlinkSync(C.BASE+'/profile.json');}catch{}C.fs.rmSync(C.BASE+'/profiles',{recursive:true,force:true});}
 console.log(JSON.stringify({ok:true,profileRetained:!process.argv.includes('--delete-profile')}));
