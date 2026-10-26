@@ -1,0 +1,15 @@
+{
+  "id": "io.github.steam20011972-code.tvvpn",
+  "version": "0.1.0",
+  "vendor": "TV VPN contributors",
+  "title": "TV VPN",
+  "icon": "icon.png",
+  "largeIcon": "icon.png",
+  "main": "index.html",
+  "type": "web",
+  "requiredACG": [],
+  "resolution": "1920x1080",
+  "iconColor": "#1179f5",
+  "appDescription": "VPN client for rooted LG webOS TVs (sing-box)",
+  "disableBackHistoryAPI": true
+}

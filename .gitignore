@@ -1,0 +1,8 @@
+node_modules/
+dist/
+downloads/
+private/
+*.log
+*.dpapi
+profile.json
+config.json

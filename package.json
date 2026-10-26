@@ -1,0 +1,15 @@
+{
+  "name": "tv-vpn",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VPN client for rooted LG webOS TVs, built on sing-box",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/*.test.cjs",
+    "build": "node tools/build.cjs"
+  },
+  "devDependencies": {
+    "@webos-tools/cli": "3.2.6",
+    "ssh2": "1.17.0"
+  }
+}
