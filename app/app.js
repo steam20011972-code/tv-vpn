@@ -51,7 +51,7 @@
   phase='setup';$('main').hidden=true;$('setup-screen').hidden=false;document.body.className='fallback';
   var c=s&&s.checks||{},list=$('setup-checks'),button=$('setup-install'),root=s&&c.root,ready=s&&s.ready,update=s&&s.installed;
   list.textContent='';
-  if(s)checkLabels.forEach(function(k){var li=document.createElement('li');li.className=c[k[0]]?'ok':'missing';li.textContent=(c[k[0]]?'✓ ':'✗ ')+k[1];list.appendChild(li);});
+  if(s)checkLabels.forEach(function(k){var li=document.createElement('li');li.className=c[k[0]]?'ok':'missing';li.textContent=k[1];list.appendChild(li);});
   $('setup-title').textContent=!root?'Нужен Homebrew Channel с Root OK':!ready?'Телевизор не поддерживается':update?'Обновить компоненты':'Установить компоненты';
   $('setup-description').textContent=error||(!root?'MEDZH VPN работает только на телевизоре с root. Откройте Homebrew Channel и убедитесь, что в настройках указано «Root OK».':!ready?'Не хватает компонентов, отмеченных ниже. VPN на этом телевизоре работать не сможет.':update?'Установлена версия '+s.installed.version+'. Обновим сетевой модуль и контроллер до версии '+s.appVersion+'. Профиль и настройки сохранятся.':'Скопируем сетевой модуль sing-box и контроллер в память телевизора. Автоподключение останется выключенным.');
   button.dataset.action=root&&ready?'install':'check';button.textContent=root&&ready?$('setup-title').textContent:'Проверить снова';button.removeAttribute('aria-busy');button.focus();

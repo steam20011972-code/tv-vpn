@@ -1,20 +1,20 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MEDZH VPN</title><link rel="stylesheet" href="style.css"></head>
 <body><div class="shell">
- <header><div class="brand"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="19"/><ellipse cx="24" cy="24" rx="9" ry="19"/><path d="M5 24h38M9 13h30M9 35h30"/></svg>MEDZH VPN</div><div class="header-note">ВАШЕ ПОДКЛЮЧЕНИЕ · НА ТЕЛЕВИЗОРЕ</div><span id="preview" hidden>Предпросмотр</span></header>
+ <header><div class="brand"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><path d="M14 82V22l36 38 36-38v60"/><circle class="node" cx="14" cy="82" r="11"/><circle class="hole" cx="86" cy="82" r="10"/></svg><span>MEDZH <b>VPN</b></span></div><div class="header-note">ВАШЕ ПОДКЛЮЧЕНИЕ · НА ТЕЛЕВИЗОРЕ</div><span id="preview" hidden>Предпросмотр</span></header>
  <main id="main" hidden>
   <section class="connection" aria-labelledby="state-title">
    <div id="status-pill" class="pill"><i></i><span id="pill-text">Проверяем соединение</span></div>
-   <button id="power" class="power" aria-label="Подключить VPN"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 18v34M28 29a31 31 0 1 0 44 0"/></svg></button>
+   <button id="power" class="power" aria-label="Подключить VPN"><svg viewBox="0 0 100 100" aria-hidden="true"><path class="shield" d="M14 26Q14 12 28 12H72Q86 12 86 26V52Q86 76 50 92Q14 76 14 52Z"/><path class="glyph" d="M50 30V50M38 37A18 18 0 1 0 62 37"/><path class="check" d="M34 50L46 62L67 39"/></svg></button>
    <h1 id="state-title">Подождите…</h1>
    <p id="state-description">Получаем состояние подключения</p>
    <div id="connection-meta" class="connection-meta"></div>
   </section>
   <aside>
-   <button id="profile-card" class="profile-card" aria-label="Профили VPN"><div class="eyebrow">ТЕКУЩИЙ ПРОФИЛЬ</div><div class="profile-row"><div class="server-icon">↗</div><div><h2 id="profile">Мой VPN</h2><p id="profile-kind"></p></div><span class="profile-dot"></span><span class="chevron">›</span></div><div class="profile-bottom"><span>Защита подключения</span><strong id="route-mode">Проверяем</strong></div></button>
+   <button id="profile-card" class="profile-card" aria-label="Профили VPN"><div class="eyebrow">ТЕКУЩИЙ ПРОФИЛЬ</div><div class="profile-row"><div class="server-icon"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><path d="M14 82V22l36 38 36-38v60"/><circle class="node" cx="14" cy="82" r="11"/><circle class="hole" cx="86" cy="82" r="10"/></svg></div><div><h2 id="profile">Мой VPN</h2><p id="profile-kind"></p></div><span class="profile-dot"></span><span class="chevron">›</span></div><div class="profile-bottom"><span>Защита подключения</span><strong id="route-mode">Проверяем</strong></div></button>
    <button id="autostart" class="setting" aria-pressed="false"><span><strong>Подключать автоматически</strong><small>При включении телевизора</small></span><span class="switch"><i></i></span></button>
    <button id="diagnostics" class="setting"><span><strong>Состояние и диагностика</strong><small>Проверка сети и подключения</small></span><span class="chevron">›</span></button>
-   <button id="restore" class="setting secondary"><span><strong>Восстановить обычный интернет</strong><small>Отключить VPN и вернуть настройки сети</small></span><span class="chevron">↶</span></button>
+   <button id="restore" class="setting secondary"><span><strong>Восстановить обычный интернет</strong><small>Отключить VPN и вернуть настройки сети</small></span><span class="chevron"><svg class="undo" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></span></button>
    <p class="footnote">При сбое VPN обычный интернет включится автоматически.<br>Домашняя сеть остаётся доступна.</p>
   </aside>
  </main>
