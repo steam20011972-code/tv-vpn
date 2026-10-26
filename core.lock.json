@@ -1,0 +1,11 @@
+{
+  "name": "sing-box",
+  "version": "1.14.3",
+  "arch": "armv7",
+  "url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-linux-armv7.tar.gz",
+  "asset": "sing-box-1.14.3-linux-armv7.tar.gz",
+  "sha256": "8e81ee6bc1db6fec6e0342360e1de7bfabecec8d2e9c480a3563d129f84fb034",
+  "directory": "sing-box-1.14.3-linux-armv7",
+  "binarySha256": "4741c001add6c4bbfac41631846ca5edb9e194eea1983d2c865cbf70796142f8",
+  "licenseSha256": "650d5e3b99a446fb38e820fa87a49562e0c79eab868fff58618ac487a58e554c"
+}

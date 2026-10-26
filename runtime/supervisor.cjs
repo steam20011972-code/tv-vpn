@@ -5,6 +5,7 @@ const mode=process.argv[2]||'manual';
 let prefs=C.preferences(),desired=mode==='boot'?prefs.autostart:(mode==='resume'?prefs.desired:false);
 let state={state:'disconnected',healthy:false,error:null,autostart:prefs.autostart,profile:C.read('profile.json')?.name||'VPN'},core=null,busy=false,failures=0,retry=0,nextTry=0,lastHealth=0;
 const old=C.read('run/supervisor.json');if(old&&C.ownedProcess(old.pid,old.identity,C.BASE+'/runtime/supervisor.cjs'))process.exit(0);
+C.harden();
 // ConnMan may not be ready when Homebrew starts us. Keep the controller alive
 // and retry recovery before acquiring a new lease instead of losing autostart.
 if(!C.cleanup()){state.state='fallback';state.error='recovery-pending';}

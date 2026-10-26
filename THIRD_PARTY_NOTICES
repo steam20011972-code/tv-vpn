@@ -1,7 +1,7 @@
 Third-party components
 ======================
 
-TV VPN's own code is MIT-licensed (see LICENSE). It runs, but does not link
+MEDZH VPN's own code is MIT-licensed (see LICENSE). It runs, but does not link
 against, the following separately distributed program:
 
 sing-box 1.14.3 (linux-armv7 release binary)
