@@ -9,7 +9,7 @@ function fail(code){const e=Error(code);e.code=code;return e;}
 const REASONS=['invalid-link','unsupported-protocol','unsupported-settings','unsupported-by-core','skip'];
 function reason(e){return REASONS.includes(e&&e.code)?e.code:'invalid-link';}
 // events.log gets the scheme and protocols.cjs's code and detail, which name fields only, never values.
-function note(kind,e){if(reason(e)!=='skip')C.log('link-rejected '+kind+' '+(REASONS.includes(e&&e.code)?String(e.message).replace(/[^\w .:+\/-]/g,'').slice(0,80):'internal'));return reason(e);}
+function note(kind,e){if(reason(e)!=='skip')C.log('link-rejected '+kind+' '+(REASONS.includes(e&&e.code)?String(e.message).replace(/[^\w .:=+\/-]/g,'').slice(0,80):'internal'));return reason(e);}
 function base64(text){
  const s=text.replace(/\s+/g,'');if(!/^[A-Za-z0-9+/_-]+=*$/.test(s))return null;
  const out=Buffer.from(s.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8');return out.includes('://')?out:null;

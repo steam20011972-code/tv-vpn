@@ -112,3 +112,13 @@ test('v2rayN leniency: first of a host list, relative ws path, allowInsecure in 
  const o=parse('vless://'+ID+'@example.com:443?type=ws&security=tls&host=a.example.com,b.example.com&path=ws&allowInsecure=True').outbound;
  assert.deepEqual(o.transport,{type:'ws',path:'/ws',headers:{Host:'a.example.com'}});assert.equal(o.tls.insecure,true);
 });
+test('server name: strict hostnames unchanged; comma list, IDN, wildcard and odd ASCII accepted like v2rayN',()=>{
+ const sni=s=>parse('vless://'+ID+'@192.0.2.1:443?security=reality&pbk='+KEY+'&sni='+encodeURIComponent(s)).outbound.tls.server_name;
+ assert.equal(sni('Example.COM'),'Example.COM');
+ assert.equal(sni('a.example.com,b.example.com'),'a.example.com');
+ assert.equal(sni('пример.рф'),'xn--e1afmkfd.xn--p1ai');
+ assert.equal(sni('*.example.com'),'*.example.com');
+ assert.equal(sni(' www.example.com '),'www.example.com');
+ assert.equal(sni('-bad-.example.com'),'-bad-.example.com');
+ assert.throws(()=>sni('a b'),e=>e.code==='invalid-link'&&e.message==='invalid-link: sni len=3 space symbol');
+});
