@@ -10,7 +10,8 @@ function start(reply=()=>({added:1,updated:0,removed:0,rejected:{}}),ttl){
  child.ready=new Promise((resolve,reject)=>{child.on('message',m=>{if(m.type==='listening')resolve(new URL(m.url));});child.on('exit',()=>reject(Error('exited')));});
  return child;
 }
-function request(url,{method='GET',body,lang}={}){return new Promise((resolve,reject)=>{
+// Default Accept-Language is a Russian phone's.
+function request(url,{method='GET',body,lang='ru-RU,ru;q=0.9,en;q=0.8'}={}){return new Promise((resolve,reject)=>{
  const req=http.request(url,{method,agent:false,headers:{...(lang?{'Accept-Language':lang}:{}),...(body!==undefined?{'Content-Type':'text/plain'}:{})}},res=>{let data='';res.setEncoding('utf8');res.on('data',b=>data+=b);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:data}));});
  req.on('error',reject);if(body!==undefined)req.write(body);req.end();
 });}

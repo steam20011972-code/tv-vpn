@@ -4,9 +4,9 @@
 
 [Русский](README.ru.md)
 
-A VPN client for LG webOS built on [sing-box](https://github.com/SagerNet/sing-box) (ARMv7) and a small controller running on the TV's built-in Node.js. The **MEDZH VPN** app turns a whole-MEDZH VPN on and off, restores the normal network on failure, and can connect automatically when the TV starts.
+A VPN client for LG webOS built on [sing-box](https://github.com/SagerNet/sing-box) (ARMv7) and a small controller running on the TV's built-in Node.js. The **MEDZH VPN** app turns a whole-TV VPN on and off, restores the normal network on failure, and can connect automatically when the TV starts.
 
-> **Status: early, developer-only.** Tested on one model (LG 55UA75009LA, webOS 25). Components install from the app itself; profiles are added from a phone via QR code or from a USB stick.
+> **Status: beta.** Tested on one model (LG 55UA75009LA, webOS 25); other rooted LG TVs should work if they pass the install checks below. Components install from the app itself; profiles are added from a phone via QR code or from a USB stick.
 
 ## Disclaimer
 
@@ -28,11 +28,37 @@ A VPN client for LG webOS built on [sing-box](https://github.com/SagerNet/sing-b
 
 ## Installation
 
-1. Install the IPK `io.github.steam20011972-code.tvvpn_<version>_all.ipk` (Homebrew Channel, `ares-install` or `node tools/install-app.cjs`).
-2. Open MEDZH VPN. The app checks root, `/dev/net/tun`, `ip rule`, ConnMan and Node.js and offers "Install components". The sing-box core and controller are copied from the package into `/media/developer/tv-vpn` (modes 0700/0600); the core hash is checked against `core.lock.json`. Autostart is off by default.
-3. After an IPK update the app offers "Update components"; profile and settings are kept, and a VPN that was on reconnects.
+1. **Root and Homebrew Channel.** Root the TV with a method that fits its firmware (see [webosbrew.org/rooting](https://www.webosbrew.org/rooting/)) and make sure Homebrew Channel → Settings shows "Root OK".
+2. **Download** `io.github.steam20011972-code.tvvpn_<version>_all.ipk` and its `.sha256` from [Releases](https://github.com/steam20011972-code/tv-vpn/releases) and check it: `sha256sum -c io.github.steam20011972-code.tvvpn_<version>_all.ipk.sha256`.
+3. **Install the IPK** with [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop), with `ares-install --device <tv> <file>.ipk`, or over SSH: copy it to `/tmp/tv-vpn.ipk` and run
+   `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972-code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
+4. **Open MEDZH VPN → "Install components".** The app checks the TV (see below), copies the sing-box core and the controller from the package into `/media/developer/tv-vpn` (modes 0700/0600) and verifies the core hash against `core.lock.json`. Autostart is off by default.
+5. **Add a profile** (next section) and press the big button.
 
-Without root the app shows "Homebrew Channel with Root OK required".
+After an IPK update the app offers "Update components"; profiles and settings are kept, and a VPN that was on reconnects. The app follows the TV's language: Russian for Russian, English otherwise.
+
+### What the install screen checks
+
+Each item is shown with a tick or a cross; any cross means VPN cannot work on that TV.
+
+| Check | Why |
+|---|---|
+| Root (Homebrew Channel "Root OK") | TUN, routes and DNS need root |
+| ARM processor | the bundled sing-box is `linux-armv7` |
+| Node.js 14 or newer | the controller runs on the TV's built-in Node.js and uses modern syntax (`?.`) |
+| `/dev/net/tun` | the tunnel device |
+| `ip rule` | policy routing that sends traffic into the tunnel and keeps the LAN direct |
+| `connmanctl` | reading and restoring the TV's DNS settings |
+
+If your TV fails only the Node.js check, please open a [compatibility report](https://github.com/steam20011972-code/tv-vpn/issues/new?template=compatibility.yml): a build for older Node.js is possible if there is demand.
+
+### Compatibility
+
+Beta: so far confirmed on one model. Results from other TVs are welcome through the [compatibility form](https://github.com/steam20011972-code/tv-vpn/issues/new?template=compatibility.yml).
+
+| Model | webOS | Firmware | Node.js | Result |
+|---|---|---|---|---|
+| LG 55UA75009LA (2025) | webOS TV Lite 10.3.1 (webOS 25) | 33.31.61 | 16.20.2 | Works: install from the app, import by QR and subscription, VLESS (Reality) and Trojan connect |
 
 ## Adding profiles
 
@@ -46,7 +72,7 @@ While the QR code is shown, the TV runs a small web page on its LAN address: pla
 
 ## Development
 
-Requirements: Node.js 18+, root SSH access to the TV over LAN, the TV host key in `~/.ssh/known_hosts`.
+Requirements: Node.js 20+, root SSH access to the TV over LAN, the TV host key in `~/.ssh/known_hosts`.
 
 ```sh
 npm install
@@ -55,6 +81,7 @@ export TV_SSH_PASSWORD=<root password>   # current process environment only
 ```
 
 - `npm test`; `npm run build` downloads the core pinned in `core.lock.json` (`tools/fetch-core.cjs`, SHA256-checked), builds the IPK with runtime and core, and verifies the core hash inside the package.
+- CI (`.github/workflows/build.yml`) runs the tests and the build on every push and pull request. A tag `vX.Y.Z` equal to the version in `app/appinfo.json` publishes a pre-release with the IPK and its `.sha256`. Submitting the package to the Homebrew Channel repository for one-click installation is planned after beta feedback.
 - `node tools/install-app.cjs` installs the IPK and launches the app.
 - Profile: `TVVPN_PROFILE_FILE=path/to/file node tools/stage.cjs`, or pipe the link via stdin. Keep that file outside the repository and delete it afterwards.
 - Without the app: `node tools/deploy-runtime.cjs` (runtime) and `node tools/set-autostart.cjs on|off`; install over SSH with `/usr/bin/node /media/developer/apps/usr/palm/applications/<id>/runtime/setup.cjs install|status`.
@@ -93,6 +120,16 @@ In the app: "Status and diagnostics" → "Remove MEDZH VPN completely", then cho
 ```
 
 It disables autostart, stops its own processes, restores DNS and routes, and removes the components. The profile is kept (mode 0600); add `--delete-profile` to remove it too. Then remove the MEDZH VPN icon from the TV app menu.
+
+## Reporting a problem
+
+Open an [issue](https://github.com/steam20011972-code/tv-vpn/issues/new/choose) and attach the anonymized report. Over SSH on the TV:
+
+```sh
+/usr/bin/node /media/developer/apps/usr/palm/applications/io.github.steam20011972-code.tvvpn/runtime/report.cjs
+```
+
+It only reads files and prints JSON: TV model, webOS version, the install checks, app and core versions, VPN state, protocol labels and recent event codes. Profile names, servers, links, subscription URLs, addresses, serial numbers and MACs are left out. Still look it over before posting.
 
 ## Security
 
