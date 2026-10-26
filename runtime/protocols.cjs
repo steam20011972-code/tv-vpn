@@ -21,6 +21,17 @@ function text(v,what,max=256){v=str(v);if(!v||v.length>max||/[\x00-\x1f\x7f]/.te
 // IPv6 servers cannot work: the TV kernel has no IPv6 policy routing, so external IPv6 is blocked.
 // Case is kept as given: profile ids hash the outbound, and earlier versions stored hosts unchanged.
 function host(v,what='server'){v=str(v);if(v.startsWith('[')||v.includes(':'))throw fail('unsupported-settings','ipv6 '+what);if(!IPV4.test(v)&&!DOMAIN.test(v)||/^\d+(\.\d+)*$/.test(v)&&!IPV4.test(v))throw fail('invalid-link',what);return v.replace(/\.$/,'');}
+// Shape of a refused value for events.log: length and character classes, never the value.
+function shape(s){return 'len='+s.length+[[/[A-Z]/,'upper'],[/[^\x00-\x7f]/,'unicode'],[/,/,'comma'],[/\*/,'star'],[/\s/,'space'],[/_/,'underscore'],[/[^\w.\-]/,'symbol'],[/(^|\.)-|-(\.|$)/,'edge-dash'],[/[^.]{64}/,'long-label']].filter(([r])=>r.test(s)).map(([,n])=>' '+n).join('');}
+// Xray and sing-box send the server name as given. A strict hostname keeps earlier output (profile ids);
+// otherwise, as v2rayN does: the first of a comma list, an international name in punycode, any printable ASCII.
+function serverName(v){
+ try{return host(v,'sni');}catch(e){if(e.code!=='invalid-link')throw e;}
+ let s=str(v).split(',')[0].trim();const raw=s;
+ const ascii=require('url').domainToASCII(s);if(ascii)s=ascii;
+ if(/^[\x21-\x7e]{1,253}$/.test(s))return s;
+ throw fail('invalid-link','sni '+shape(raw));
+}
 function port(v){const n=Number(v);if(!/^\d{1,5}$/.test(str(v))||n<1||n>65535)throw fail('invalid-link','port');return n;}
 function uuid(v){v=str(v);if(!UUID.test(v))throw fail('invalid-link','uuid');return v;}
 function path(v){v=str(v);if(v.length>512||!v.startsWith('/')||/[\x00-\x20\x7f]/.test(v))throw fail('invalid-link','path');return v;}
@@ -34,7 +45,7 @@ function tls(t,{required=false,reality=false}={}){
  if(!t||t.enabled!==true){if(required)throw fail('unsupported-settings','tls required');return undefined;}
  only(t,['enabled','server_name','disable_sni','insecure','alpn','utls','reality'],'tls');
  const out={enabled:true};
- if(t.server_name!==undefined&&t.server_name!=='')out.server_name=host(t.server_name,'sni');
+ if(t.server_name!==undefined&&str(t.server_name).trim()!=='')out.server_name=serverName(t.server_name);
  if(bool(t.disable_sni||false,'disable_sni'))out.disable_sni=true;
  if(bool(t.insecure||false,'insecure'))out.insecure=true;
  const protocols=t.alpn===undefined?[]:alpn(t.alpn);if(protocols.length)out.alpn=protocols;
