@@ -141,7 +141,30 @@
  $('profile-card').onclick=openProfiles;
  $('diagnostics').onclick=function(){call('diagnostics').then(diagnostics).catch(function(e){toast(e.message);});};
  function visible(selector){return Array.prototype.slice.call(document.querySelectorAll(selector)).filter(function(b){return b.offsetParent!==null;});}
- document.addEventListener('keydown',function(e){var code=e.keyCode,dialogOpen=!$('dialog').hidden;if(code===461||code===27){if(dialogOpen){e.preventDefault();if($('dialog-actions').firstChild)closeDialog();}else if(window.webOS&&webOS.platformBack)webOS.platformBack();else if(window.PalmSystem&&PalmSystem.platformBack)PalmSystem.platformBack();else window.close();return;}if([37,38,39,40].indexOf(code)<0)return;e.preventDefault();var buttons=visible(dialogOpen?'#dialog button':'.shell main button'),active=document.activeElement;if(!buttons.length)return;if(buttons.indexOf(active)<0){buttons[0].focus();return;}var a=active.getBoundingClientRect(),ax=a.left+a.width/2,ay=a.top+a.height/2,best=null,score=Infinity;buttons.forEach(function(b){if(b===active)return;var r=b.getBoundingClientRect(),dx=r.left+r.width/2-ax,dy=r.top+r.height/2-ay;var primary=code===37?-dx:code===39?dx:code===38?-dy:dy,secondary=code===37||code===39?Math.abs(dy):Math.abs(dx);if(primary>0){var n=primary+secondary*2;if(n<score){score=n;best=b;}}});if(best)best.focus();});
+ // Remote arrows. Up/down: the nearest row in that direction; in it the button under the focused one,
+ // otherwise the row's first button (dialog actions start with the main one). Left/right: the same row first.
+ function nextFocus(buttons,active,code){
+  var a=active.getBoundingClientRect(),vertical=code===38||code===40,sign=code===37||code===38?-1:1,ahead=[];
+  buttons.forEach(function(b){if(b===active)return;var r=b.getBoundingClientRect(),
+   along=vertical?(r.top+r.bottom-a.top-a.bottom)/2:(r.left+r.right-a.left-a.right)/2,
+   perp=vertical?(r.left+r.right-a.left-a.right)/2:(r.top+r.bottom-a.top-a.bottom)/2;
+   if(along*sign<=0)return;
+   ahead.push({b:b,r:r,along:Math.abs(along),perp:Math.abs(perp),
+    gap:Math.max(0,sign>0?(vertical?r.top-a.bottom:r.left-a.right):(vertical?a.top-r.bottom:a.left-r.right)),
+    cross:vertical?Math.max(0,r.left-a.right,a.left-r.right):Math.max(0,r.top-a.bottom,a.top-r.bottom)});});
+  // beyond: entirely past the focused button's edge; a partly overlapping button is not the next row or column.
+  var beyond=ahead.filter(function(c){return vertical?(sign>0?c.r.top>=a.bottom-4:c.r.bottom<=a.top+4):(sign>0?c.r.left>=a.right-4:c.r.right<=a.left+4);});
+  if(vertical&&beyond.length){
+   var row=Math.min.apply(null,beyond.map(function(c){return c.gap;})),inRow=beyond.filter(function(c){return c.gap<=row+8;});
+   var under=inRow.filter(function(c){return c.cross===0;}).sort(function(x,y){return Math.abs(x.r.left-a.left)-Math.abs(y.r.left-a.left);});
+   return (under[0]||inRow.sort(function(x,y){return x.r.left-y.r.left;})[0]).b;
+  }
+  var same=vertical?[]:ahead.filter(function(c){return c.cross===0;});
+  if(same.length)return same.sort(function(x,y){return x.gap-y.gap||x.perp-y.perp;})[0].b;
+  var pool=vertical?ahead:beyond;
+  return pool.length?pool.sort(function(x,y){return x.along+x.perp*2-y.along-y.perp*2;})[0].b:null;
+ }
+ document.addEventListener('keydown',function(e){var code=e.keyCode,dialogOpen=!$('dialog').hidden;if(code===461||code===27){if(dialogOpen){e.preventDefault();if($('dialog-actions').firstChild)closeDialog();}else if(window.webOS&&webOS.platformBack)webOS.platformBack();else if(window.PalmSystem&&PalmSystem.platformBack)PalmSystem.platformBack();else window.close();return;}if([37,38,39,40].indexOf(code)<0)return;e.preventDefault();var buttons=visible(dialogOpen?'#dialog button':'.shell main button'),active=document.activeElement;if(!buttons.length)return;if(buttons.indexOf(active)<0){buttons[0].focus();return;}var best=nextFocus(buttons,active,code);if(best)best.focus();});
  // Leaving the app (Home) while the QR code is shown also closes the phone page.
  document.addEventListener('visibilitychange',function(){if(document.hidden&&dialogCleanup&&!$('dialog').hidden)closeDialog();if(phase==='main')refresh();else if(phase==='setup'&&!document.hidden&&$('setup-install').getAttribute('aria-busy')!=='true')check();});
  $('preview').hidden=!demo;check();setInterval(refresh,4000);
