@@ -6,7 +6,7 @@
 
 VPN-клиент для LG webOS на основе [sing-box](https://github.com/SagerNet/sing-box) (ARMv7) и небольшого контроллера на Node.js, который уже есть на ТВ. Приложение **MEDZH VPN** включает и выключает VPN для всего телевизора, восстанавливает обычную сеть при сбое и умеет подключаться автоматически при включении ТВ.
 
-> **Статус: ранняя версия для разработчиков.** Проверено на одной модели (LG 55UA75009LA, webOS 25). Компоненты ставятся из самого приложения; профили добавляются с телефона по QR-коду или с флешки.
+> **Статус: beta.** Проверено на одной модели (LG 55UA75009LA, webOS 25); другие LG с root должны работать, если проходят проверки экрана установки (см. ниже). Компоненты ставятся из самого приложения; профили добавляются с телефона по QR-коду или с флешки.
 
 ## Дисклеймер
 
@@ -28,11 +28,37 @@ VPN-клиент для LG webOS на основе [sing-box](https://github.com
 
 ## Установка
 
-1. Установите IPK `io.github.steam20011972-code.tvvpn_<версия>_all.ipk` (Homebrew Channel, `ares-install` или `node tools/install-app.cjs`).
-2. Откройте MEDZH VPN. Приложение проверит root, `/dev/net/tun`, `ip rule`, ConnMan и Node.js и предложит «Установить компоненты». Ядро sing-box и контроллер копируются из пакета в `/media/developer/tv-vpn` (права 0700/0600), хеш ядра сверяется с `core.lock.json`. Автоподключение по умолчанию выключено.
-3. После обновления IPK приложение предложит «Обновить компоненты»; профиль и настройки сохраняются, включённый VPN переподключится.
+1. **Root и Homebrew Channel.** Получите root способом, подходящим для прошивки вашего ТВ (см. [webosbrew.org/rooting](https://www.webosbrew.org/rooting/)), и убедитесь, что в Homebrew Channel → Settings указано «Root OK».
+2. **Скачайте** `io.github.steam20011972-code.tvvpn_<версия>_all.ipk` и файл `.sha256` из [Releases](https://github.com/steam20011972-code/tv-vpn/releases) и проверьте: `sha256sum -c io.github.steam20011972-code.tvvpn_<версия>_all.ipk.sha256`.
+3. **Установите IPK** через [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop), командой `ares-install --device <tv> <файл>.ipk` или по SSH: скопируйте его в `/tmp/tv-vpn.ipk` и выполните
+   `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972-code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
+4. **Откройте MEDZH VPN → «Установить компоненты».** Приложение проверит телевизор (см. ниже), скопирует ядро sing-box и контроллер из пакета в `/media/developer/tv-vpn` (права 0700/0600) и сверит хеш ядра с `core.lock.json`. Автоподключение по умолчанию выключено.
+5. **Добавьте профиль** (следующий раздел) и нажмите большую кнопку.
 
-Без root приложение покажет «Нужен Homebrew Channel с Root OK».
+После обновления IPK приложение предложит «Обновить компоненты»; профили и настройки сохраняются, включённый VPN переподключится. Язык приложения — как у телевизора: русский для русского, иначе английский.
+
+### Что проверяет экран установки
+
+Каждый пункт отмечается галочкой или крестиком; при любом крестике VPN на этом ТВ работать не сможет.
+
+| Проверка | Зачем |
+|---|---|
+| Root (Homebrew Channel «Root OK») | TUN, маршруты и DNS требуют root |
+| Процессор ARM | в пакете sing-box `linux-armv7` |
+| Node.js 14 или новее | контроллер работает на встроенном Node.js телевизора и использует современный синтаксис (`?.`) |
+| `/dev/net/tun` | устройство туннеля |
+| `ip rule` | маршрутизация по правилам: трафик в туннель, локальная сеть напрямую |
+| `connmanctl` | чтение и восстановление настроек DNS телевизора |
+
+Если ваш ТВ не проходит только проверку Node.js, оставьте [отчёт о совместимости](https://github.com/steam20011972-code/tv-vpn/issues/new?template=compatibility.yml): сборку под старый Node.js сделаем, если она будет нужна.
+
+### Совместимость
+
+Beta: пока подтверждено на одной модели. Результаты с других ТВ присылайте через [форму совместимости](https://github.com/steam20011972-code/tv-vpn/issues/new?template=compatibility.yml).
+
+| Модель | webOS | Прошивка | Node.js | Результат |
+|---|---|---|---|---|
+| LG 55UA75009LA (2025) | webOS TV Lite 10.3.1 (webOS 25) | 33.31.61 | 16.20.2 | Работает: установка из приложения, импорт по QR и подписке, подключение VLESS (Reality) и Trojan |
 
 ## Добавление профилей
 
@@ -46,7 +72,7 @@ VPN-клиент для LG webOS на основе [sing-box](https://github.com
 
 ## Разработка
 
-Нужны: Node.js 18+, SSH-доступ root к ТВ по LAN, ключ ТВ в `~/.ssh/known_hosts`.
+Нужны: Node.js 20+, SSH-доступ root к ТВ по LAN, ключ ТВ в `~/.ssh/known_hosts`.
 
 ```sh
 npm install
@@ -55,6 +81,7 @@ export TV_SSH_PASSWORD=<пароль root>   # только в окружени�
 ```
 
 - `npm test`; `npm run build` — скачивает ядро по `core.lock.json` (`tools/fetch-core.cjs`, проверка SHA256), собирает IPK с runtime и ядром и проверяет хеш ядра внутри пакета.
+- CI (`.github/workflows/build.yml`) запускает тесты и сборку на каждый push и pull request. Тег `vX.Y.Z`, совпадающий с версией в `app/appinfo.json`, публикует pre-release с IPK и `.sha256`. Подать пакет в репозиторий Homebrew Channel для установки в один клик планируется после отзывов по beta.
 - `node tools/install-app.cjs` — установить IPK и открыть приложение.
 - Профиль: `TVVPN_PROFILE_FILE=путь/к/файлу node tools/stage.cjs` или передайте ссылку через stdin. Файл со ссылкой храните вне репозитория и удалите после импорта.
 - Без приложения: `node tools/deploy-runtime.cjs` (runtime) и `node tools/set-autostart.cjs on|off`; установка по SSH — `/usr/bin/node /media/developer/apps/usr/palm/applications/<id>/runtime/setup.cjs install|status`.
@@ -93,6 +120,16 @@ export TV_SSH_PASSWORD=<пароль root>   # только в окружени�
 ```
 
 Отключается автозапуск, завершаются свои процессы, восстанавливаются DNS и маршруты, удаляются компоненты. Профиль остаётся (права 0600); чтобы удалить и его, добавьте `--delete-profile`. Затем удалите значок MEDZH VPN через меню приложений ТВ.
+
+## Если что-то не работает
+
+Откройте [issue](https://github.com/steam20011972-code/tv-vpn/issues/new/choose) и приложите обезличенный отчёт. По SSH на телевизоре:
+
+```sh
+/usr/bin/node /media/developer/apps/usr/palm/applications/io.github.steam20011972-code.tvvpn/runtime/report.cjs
+```
+
+Команда только читает файлы и выводит JSON: модель ТВ, версию webOS, результаты проверок, версии приложения и ядра, состояние VPN, названия протоколов и последние коды событий. Имена профилей, серверы, ссылки, адреса подписок, IP-адреса, серийные номера и MAC в него не попадают. Всё равно просмотрите его перед публикацией.
 
 ## Безопасность
 

@@ -20,6 +20,8 @@ const T={
   done:'Done',doneText:'You can close this page: the profiles are on the TV.',none:'Nothing was added',again:'Try again',added:'Added',updated:'Updated',rejected:'Rejected',busy:'The TV is still handling the previous request. Try again in a few seconds.',failed:'Could not save the profiles.',
   reasons:{'invalid-link':'malformed link','unsupported-protocol':'protocol not supported yet','unsupported-settings':'settings not supported','unsupported-by-core':'not supported by sing-box (xhttp, kcp, etc.)','unrecognized-format':'unrecognized format','subscription-failed':'subscription did not load','subscription-empty':'no usable profiles in the subscription','subscription-no-data':'the subscription server returned an empty response','too-large':'too much text','too-many':'too many links','empty':'empty text'}}
 };
+// First listed language we have, English otherwise: the same rule as the TV app (app/i18n.js).
+function language(header){for(const part of String(header||'').split(',')){const m=/^\s*([a-z]{2})(?![a-z])/i.exec(part);if(m&&T[m[1].toLowerCase()])return m[1].toLowerCase();}return 'en';}
 const esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
 function page(t,body){return '<!doctype html><html lang="'+(t===T.ru?'ru':'en')+'"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MEDZH VPN</title><style>'+
  'body{margin:0;font:17px/1.45 system-ui,sans-serif;background:#0b1220;color:#eef3ff}main{max-width:560px;margin:0 auto;padding:24px 16px}h1{font-size:24px;margin:0 0 8px}'+
@@ -47,7 +49,7 @@ const server=http.createServer((req,res)=>{
  const now=Date.now();while(recent.length&&now-recent[0]>60000)recent.shift();
  if(recent.length>=RATE){res.writeHead(429,{'Retry-After':'60','Connection':'close'});res.end();req.socket.destroy();return;}
  recent.push(now);
- const t=/^\s*en/i.test(req.headers['accept-language']||'')?T.en:T.ru;
+ const t=T[language(req.headers['accept-language'])];
  if(req.url!=='/'+token){res.writeHead(404,{'Connection':'close'});res.end();return;}
  if(req.method==='GET')return send(res,200,form(t));
  if(req.method!=='POST'){res.writeHead(405,{'Allow':'GET, POST','Connection':'close'});res.end();return;}
@@ -75,4 +77,4 @@ if(require.main===module){
  process.on('disconnect',()=>process.exit(0));
  setInterval(()=>{if(process.ppid!==parent)process.exit(0);},1000).unref();
 }
-module.exports={privateSource};
+module.exports={privateSource,language,T};

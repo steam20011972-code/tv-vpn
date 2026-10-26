@@ -1,0 +1,40 @@
+name: TV compatibility / Совместимость телевизора
+description: Tell us whether MEDZH VPN works on your model / Работает ли MEDZH VPN на вашей модели
+labels: [compatibility]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Your result goes into the compatibility table in the README. **No VPN links, keys, addresses or passwords.**
+        Результат попадёт в таблицу совместимости в README. **Без ссылок VPN, ключей, адресов и паролей.**
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result / Результат
+      options:
+        - Works / Работает
+        - Works with problems / Работает с проблемами
+        - Install screen shows missing components / Экран установки показывает, чего не хватает
+        - Does not work / Не работает
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Anonymized report / Обезличенный отчёт
+      description: |
+        Over SSH on the TV / По SSH на телевизоре:
+        `/usr/bin/node /media/developer/apps/usr/palm/applications/io.github.steam20011972-code.tvvpn/runtime/report.cjs`
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: root
+    attributes:
+      label: Root method / Способ root
+      description: e.g. DejaVuln, faultmanager-autoroot, crashd, DangBro
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes / Заметки
+      description: What worked, what did not, which protocols you tried. / Что работало, что нет, какие протоколы пробовали.

@@ -1,0 +1,41 @@
+name: Bug report / Сообщить об ошибке
+description: Something does not work on your TV / Что-то не работает на телевизоре
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste VPN links, UUIDs, keys, passwords, server addresses or subscription URLs.** The report below already leaves them out.
+        **Не вставляйте ссылки VPN, UUID, ключи, пароли, адреса серверов и подписок.** Отчёт ниже их уже не содержит.
+
+        Security problems go to Security → Report a vulnerability, not here. / Уязвимости — через Security → Report a vulnerability.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened / Что произошло
+      description: What you did, what you expected, what you saw (screen text, error). / Что делали, что ожидали, что увидели (текст на экране, ошибка).
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Anonymized report / Обезличенный отчёт
+      description: |
+        Over SSH on the TV / По SSH на телевизоре:
+        `/usr/bin/node /media/developer/apps/usr/palm/applications/io.github.steam20011972-code.tvvpn/runtime/report.cjs`
+        It only reads files: model, webOS version, checks, VPN state and recent event codes. / Только читает файлы: модель, версию webOS, проверки, состояние VPN и последние коды событий.
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: protocol
+    attributes:
+      label: Protocol and transport / Протокол и транспорт
+      description: As shown under the profile name, e.g. "VLESS · Reality · Vision". No addresses. / Как под именем профиля, без адресов.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy / Конфиденциальность
+      options:
+        - label: I checked that nothing above contains links, keys, addresses or passwords. / Я проверил(а), что выше нет ссылок, ключей, адресов и паролей.
+          required: true
