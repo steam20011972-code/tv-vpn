@@ -1,25 +1,16 @@
 'use strict';
 // Turns pasted text, a USB file or a subscription into stored profiles.
-// Accepted: vless:// links one per line, base64 of such a list, sing-box JSON with outbounds, http(s) subscription URLs.
+// Accepted: share links one per line (protocols.cjs), base64 of such a list, sing-box JSON with outbounds, http(s) subscription URLs.
 // Results hold only counters and reason codes: links, names and URLs are never echoed back.
-const C=require('./common.cjs'),P=require('./profiles.cjs'),{parse}=require('./profile.cjs');
+const C=require('./common.cjs'),P=require('./profiles.cjs'),{SCHEMES,parse,fromOutbound}=require('./protocols.cjs');
 const MAX_TEXT=65536,MAX_SUBSCRIPTION=1048576,MAX_PROFILES=200,MAX_URLS=3,DAY=86400000;
 const USB=process.env.TVVPN_USB_ROOT||'/tmp/usb';
 function fail(code){const e=Error(code);e.code=code;return e;}
-function reason(e){const m=e&&e.message||'';return ['unsupported-protocol','unsupported-settings','skip'].includes(m)?m:/^(Unsupported|MVP requires)/.test(m)?'unsupported-settings':'invalid-link';}
+const REASONS=['invalid-link','unsupported-protocol','unsupported-settings','unsupported-by-core','skip'];
+function reason(e){return REASONS.includes(e&&e.code)?e.code:'invalid-link';}
 function base64(text){
  const s=text.replace(/\s+/g,'');if(!/^[A-Za-z0-9+/_-]+=*$/.test(s))return null;
  const out=Buffer.from(s.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8');return out.includes('://')?out:null;
-}
-// A sing-box outbound goes through the same validation as a pasted link.
-function fromOutbound(o){
- if(!o||typeof o!=='object')throw Error('invalid-link');
- if(['selector','urltest','direct','block','dns'].includes(o.type))throw Error('skip');
- if(o.type!=='vless')throw Error('unsupported-protocol');
- const t=o.tls||{},r=t.reality||{};
- if(o.transport||o.multiplex||!t.enabled||!r.enabled)throw Error('unsupported-settings');
- const q=new URLSearchParams({type:'tcp',encryption:'none',security:'reality',pbk:String(r.public_key||''),fp:String(t.utls&&t.utls.fingerprint||'chrome'),sni:String(t.server_name||''),sid:String(r.short_id||''),flow:String(o.flow||'')});
- return parse('vless://'+o.uuid+'@'+o.server+':'+o.server_port+'?'+q+'#'+encodeURIComponent(String(o.tag||'VPN')));
 }
 // Profiles and subscription URLs found in one body; reasons for everything else.
 function scan(text){
@@ -35,7 +26,7 @@ function scan(text){
  if(!lines.length)found.rejected.push('unrecognized-format');
  for(const line of lines){
   if(/^https?:\/\//i.test(line))found.urls.push(line);
-  else if(/^vless:\/\//i.test(line))try{found.profiles.push(parse(line));}catch(e){found.rejected.push(reason(e));}
+  else if(SCHEMES.test(line))try{found.profiles.push(parse(line));}catch(e){found.rejected.push(reason(e));}
   else found.rejected.push(/^[a-z][a-z0-9+.-]*:\/\//i.test(line)?'unsupported-protocol':'unrecognized-format');
  }
  return found;

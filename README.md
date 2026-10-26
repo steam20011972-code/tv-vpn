@@ -17,7 +17,11 @@ A VPN client for LG webOS built on [sing-box](https://github.com/SagerNet/sing-b
 
 ## Currently supported
 
-- Profile: `vless://` with TCP / Reality / Vision (`flow=xtls-rprx-vision`, `encryption=none`). More protocols are planned.
+- Profiles (share links or sing-box JSON outbounds):
+  - `vless://` — security none / TLS / Reality; transport TCP, WebSocket (incl. `?ed=` early data), gRPC, HTTPUpgrade; `flow=xtls-rprx-vision`;
+  - `vmess://` (v2rayN base64 JSON, `alterId` 0), `trojan://`, `ss://` (SIP002 and legacy base64; AEAD and 2022 ciphers, no plugins), `hysteria2://` / `hy2://` (salamander obfs, port hopping), `tuic://`.
+  - Parameters are checked against an allowlist: an unknown parameter rejects the link rather than being dropped. Xray-only features (xhttp, kcp, VLESS encryption) are rejected as "not supported by sing-box". IPv6 server addresses are not supported.
+  - The server may be a domain name: it is resolved with the TV's normal DNS before the tunnel starts. The VPN counts as connected when Cloudflare's trace through the tunnel shows the server's address, or an exit address different from the TV's direct one.
 - All TV IPv4 traffic goes through the VPN; DNS uses DoH inside the tunnel. External IPv6 is blocked while connected. The LAN stays reachable.
 - If the server is unreachable, the controller restores the normal network and retries with back-off up to 5 minutes. An independent watchdog restores the network if the controller hangs.
 
@@ -33,7 +37,7 @@ Without root the app shows "Homebrew Channel with Root OK required".
 
 Open the profile card → "Add profile".
 
-- **Phone (QR code).** The phone must be on the same network as the TV. Scan the code, paste a `vless://` link, several links or a subscription URL, and tap "Add". The TV shows how many profiles were added and why others were rejected.
+- **Phone (QR code).** The phone must be on the same network as the TV. Scan the code, paste a link (`vless`, `vmess`, `trojan`, `ss`, `hysteria2`, `tuic`), several links or a subscription URL, and tap "Add". The TV shows how many profiles were added and why others were rejected.
 - **USB stick.** Put the text into `tv-vpn.txt` in the root of the stick (up to 64 KB), plug it into the TV and choose "Load from USB". Delete the file afterwards: it holds your access keys.
 - **Subscriptions.** An `http(s)` URL returning a base64 list, a plain list of links or sing-box JSON (up to 1 MB). The profiles screen has "Refresh" for each subscription; after a TV start, subscriptions older than a day refresh automatically. If the active profile's credentials rotate, it follows the profile with the same name.
 

@@ -11,7 +11,7 @@ const reset=()=>fs.rmSync(BASE+'/profiles',{recursive:true,force:true});
 const fetchFrom=bodies=>async url=>{if(!(url in bodies))throw Object.assign(Error('subscription-failed'),{code:'subscription-failed'});return bodies[url];};
 
 test('plain list: links are taken, other schemes and junk are rejected by reason',()=>{
- const f=I.scan([link(1,'One'),'# comment','vmess://abc','hello',link(2,'Two'),link(3,'Bad').replace('sid=abcd','sid=abc'),link(4,'Ws').replace('type=tcp','type=ws'),SUB].join('\r\n'));
+ const f=I.scan([link(1,'One'),'# comment','wireguard://abc','hello',link(2,'Two'),link(3,'Bad').replace('sid=abcd','sid=abc'),link(4,'Ws').replace('type=tcp','type=ws'),SUB].join('\r\n'));
  assert.deepEqual(f.profiles.map(p=>p.name),['One','Two']);
  assert.deepEqual(f.urls,[SUB]);
  assert.deepEqual(f.rejected.sort(),['invalid-link','unrecognized-format','unsupported-protocol','unsupported-settings']);
@@ -24,7 +24,7 @@ test('base64 list (standard and URL-safe) decodes to links',()=>{
 });
 test('sing-box JSON: vless Reality outbounds kept, groups skipped, others rejected',()=>{
  const good={type:'vless',tag:'NL',server:'192.0.2.20',server_port:443,uuid:'00000000-0000-4000-8000-000000000020',flow:'xtls-rprx-vision',tls:{enabled:true,server_name:'example.com',utls:{enabled:true,fingerprint:'firefox'},reality:{enabled:true,public_key:'B'.repeat(43),short_id:'ab'}}};
- const f=I.scan(JSON.stringify({outbounds:[{type:'selector',tag:'proxy',outbounds:['NL']},good,{type:'vmess',tag:'x'},{...good,transport:{type:'ws'}},{type:'direct',tag:'direct'}]}));
+ const f=I.scan(JSON.stringify({outbounds:[{type:'selector',tag:'proxy',outbounds:['NL']},good,{type:'wireguard',tag:'x'},{...good,transport:{type:'ws'}},{type:'direct',tag:'direct'}]}));
  assert.equal(f.profiles.length,1);
  assert.deepEqual(f.profiles[0].outbound,{type:'vless',tag:'proxy',server:'192.0.2.20',server_port:443,uuid:good.uuid,flow:'xtls-rprx-vision',tls:{enabled:true,server_name:'example.com',utls:{enabled:true,fingerprint:'firefox'},reality:{enabled:true,public_key:'B'.repeat(43),short_id:'ab'}}});
  assert.equal(f.profiles[0].name,'NL');
@@ -33,7 +33,7 @@ test('sing-box JSON: vless Reality outbounds kept, groups skipped, others reject
 });
 test('pasted links are stored; results hold counters only, no secrets',async()=>{
  reset();
- const r=await I.importText(link(1,'One')+'\n'+link(2,'Two')+'\n'+link(1,'One again')+'\ntrojan://x@y:1');
+ const r=await I.importText(link(1,'One')+'\n'+link(2,'Two')+'\n'+link(1,'One again')+'\nwireguard://x@y:1');
  assert.deepEqual(r,{added:2,updated:0,removed:0,rejected:{'unsupported-protocol':1},activeChanged:false});
  assert.equal(P.list().items.length,2);
  const again=await I.importText(link(1,'One'));assert.equal(again.added,0);assert.equal(again.updated,1);
@@ -93,3 +93,13 @@ test('USB: tv-vpn.txt in a partition root is imported; none found is an error',a
  assert.deepEqual((await I.importUsb()).rejected,{'too-large':1});
 });
 test.after(()=>fs.rmSync(tmp,{recursive:true,force:true}));
+test('every supported scheme is imported from one list; Xray-only transports get their own reason',async()=>{
+ reset();
+ const id='00000000-0000-4000-8000-0000000000aa',ss=Buffer.from('aes-256-gcm:pw').toString('base64url');
+ const vm=Buffer.from(JSON.stringify({add:'192.0.2.51',port:443,id,net:'ws',path:'/v',tls:'tls',ps:'VM'})).toString('base64');
+ const text=['trojan://pw@192.0.2.50:443#TR','vmess://'+vm,'ss://'+ss+'@192.0.2.52:8388#SS','hy2://pw@192.0.2.53:443#HY','tuic://'+id+':pw@192.0.2.54:443?alpn=h3#TU','vless://'+id+'@192.0.2.55:443?type=xhttp&security=tls'].join('\n');
+ const r=await I.importText(Buffer.from(text).toString('base64'));
+ assert.equal(r.added,5);assert.deepEqual(r.rejected,{'unsupported-by-core':1});
+ assert.deepEqual(P.list().items.map(x=>x.kind).sort(),['Hysteria2','Shadowsocks','TUIC','Trojan · TLS','VMess · TLS · WS']);
+ const visible=fs.readFileSync(BASE+'/profiles/index.json','utf8');for(const s of ['pw',id,'192.0.2.5'])assert.ok(!visible.includes(s),s);
+});

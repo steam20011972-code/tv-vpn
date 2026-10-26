@@ -1,10 +1,10 @@
 'use strict';
-const net=require('net'),os=require('os'),C=require('./common.cjs');
-const {config}=require('./profile.cjs'),P=require('./profiles.cjs'),I=require('./importer.cjs');
+const net=require('net'),os=require('os'),dns=require('dns'),C=require('./common.cjs');
+const {config,exitOk}=require('./profile.cjs'),P=require('./profiles.cjs'),I=require('./importer.cjs');
 const mode=process.argv[2]||'manual';
 let prefs=C.preferences(),desired=mode==='boot'?prefs.autostart:(mode==='resume'?prefs.desired:false);
-// using: the profile the running core was started with; switching: a select arrived while start/health was busy.
-let state={state:'disconnected',healthy:false,error:null,autostart:prefs.autostart,profile:null,profileKind:null},core=null,busy=false,failures=0,retry=0,nextTry=0,lastHealth=0,using=null,switching=false;
+// using: the profile the running core was started with, plus its server's IPv4 addresses; switching: a select arrived while start/health was busy.
+let state={state:'disconnected',healthy:false,error:null,autostart:prefs.autostart,profile:null,profileKind:null},core=null,busy=false,failures=0,retry=0,nextTry=0,lastHealth=0,using=null,switching=false,directIP=null;
 const old=C.read('run/supervisor.json');if(old&&C.ownedProcess(old.pid,old.identity,C.BASE+'/runtime/supervisor.cjs'))process.exit(0);
 C.harden();
 function label(){const item=P.activeItem();state.profile=item?item.name:null;state.profileKind=item?item.kind:null;}
@@ -18,24 +18,41 @@ function save(){C.write('run/status.json',{...state,autostart:prefs.autostart,de
 function heartbeat(){try{C.fs.writeFileSync(C.RUN+'/heartbeat',String(Math.floor(os.uptime())),{mode:0o600});}catch{}}
 heartbeat();setInterval(heartbeat,2000);
 function remember(){prefs.desired=desired;C.write('preferences.json',prefs);save();}
-function health(){return new Promise(resolve=>{
- const start=Date.now();C.cp.execFile('curl',['-4','--silent','--show-error','--max-time','7','https://www.cloudflare.com/cdn-cgi/trace'],{timeout:8500,maxBuffer:8192},(err,out)=>{const ip=out&&out.match(/^ip=(.+)$/m)?.[1];resolve(!err&&using&&ip===using.outbound.server?{ok:true,exitMatchesServer:true,latency:Date.now()-start}:{ok:false});});
+// Exit IPv4 as Cloudflare sees it over the current routes, or null.
+function trace(seconds){return new Promise(resolve=>{
+ C.cp.execFile('curl',['-4','--silent','--show-error','--max-time',String(seconds),'https://www.cloudflare.com/cdn-cgi/trace'],{timeout:seconds*1000+1500,maxBuffer:8192},(err,out)=>{const ip=!err&&out&&out.match(/^ip=(\d+\.\d+\.\d+\.\d+)$/m)?.[1];resolve(ip||null);});
 });}
+// Rule in profile.exitOk. directIP is the user's public address: it stays in memory only.
+async function health(){
+ const start=Date.now(),ip=await trace(7);if(!using||!exitOk(ip,using.serverIPs,directIP))return {ok:false};
+ return {ok:true,exitMatchesServer:using.serverIPs.includes(ip),latency:Date.now()-start};
+}
+// A domain server is resolved here, before ConnMan DNS points at our listener; the core gets these addresses.
+async function resolveServer(server){
+ if(/^\d+\.\d+\.\d+\.\d+$/.test(server))return [server];
+ let timer;const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('timeout')),5000);});
+ try{const list=await Promise.race([dns.promises.lookup(server,{all:true,family:4}),timeout]);const ips=[...new Set(list.map(a=>a.address))];if(ips.length)return ips;}catch{}finally{clearTimeout(timer);}
+ throw Error('server-not-found');
+}
 function fallback(error){C.cleanup();core=null;state={...state,state:'fallback',healthy:false,error};failures=0;retry++;nextTry=Date.now()+Math.min(300000,10000*Math.pow(2,Math.min(retry-1,5)));C.log(error);save();}
 async function start(){
  if(busy||!desired||state.state==='connected')return;busy=true;state.state='connecting';state.error=null;save();
  try{
   if(!C.cleanup())throw Error('recovery-pending');
-  const profile=P.active();label();if(!profile)throw Error('no-profile');using=profile;
+  const profile=P.active();label();if(!profile)throw Error('no-profile');
   const route=C.command('ip',['-4','route','show','default']);const iface=route.match(/\bdev\s+([a-zA-Z0-9_.:-]+)/)?.[1];if(!iface)throw Error('no-network');
   if(C.rules().some(l=>{const n=parseInt(l);return n>=18000&&n<18100;}))throw Error('route-conflict');
   if(C.command('ip',['-4','route','show','table','20220'],true))throw Error('route-conflict');
   if(C.command('ip',['link','show','tvvpn0'],true))throw Error('route-conflict');
   const addr=C.command('ip',['-4','addr','show']);if(addr.includes('172.30.247.'))throw Error('address-conflict');
   const v6=C.command('ip',['-6','route','show']);if(/(?:^|\n)(?:unreachable )?(?:::\/1|8000::\/1)\s/.test(v6))throw Error('route-conflict');
+  const serverIPs=await resolveServer(profile.outbound.server);const direct=await trace(4);if(direct)directIP=direct;
+  if(!desired){state.state='disconnected';return;}
+  using={...profile,serverIPs};
   const srv=C.service(),previous=C.dnsProperties(srv);
   const localIP=C.command('ip',['-4','-o','addr','show','dev',iface]).match(/\binet\s+(\d+\.\d+\.\d+\.\d+)\//)?.[1];if(!localIP)throw Error('no-network');
-  C.write('config.json',config(profile,iface,true,localIP));
+  let cfg;try{cfg=config(profile,iface,true,localIP,serverIPs);}catch(e){throw Error(e.message==='server-not-found'?e.message:'invalid-profile');}
+  C.write('config.json',cfg);
   try{C.command(C.BASE+'/bin/sing-box',['check','-c',C.BASE+'/config.json']);}catch{throw Error('invalid-profile');}
   const lease={id:Date.now()+'-'+process.pid,supervisor:process.pid,reserved:true,ipv6:true,iface,localIP,dns:{service:srv,previous,target:localIP}};
   C.write('run/lease.json',lease);heartbeat();
