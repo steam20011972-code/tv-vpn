@@ -28,7 +28,7 @@ test('VMess (v2rayN base64 JSON) with ws + TLS, and plain TCP',()=>{
  assert.deepEqual(parse('vmess://'+b64({v:2,ps:'T',add:'192.0.2.5',port:10086,id:ID,aid:0,net:'tcp',tls:''})).outbound,{type:'vmess',tag:'proxy',server:'192.0.2.5',server_port:10086,uuid:ID,security:'auto'});
  code(()=>parse('vmess://'+b64({add:'192.0.2.5',port:1,id:ID,aid:64})),'unsupported-settings');
  code(()=>parse('vmess://'+b64({add:'192.0.2.5',port:1,id:ID,net:'kcp'})),'unsupported-by-core');
- code(()=>parse('vmess://'+b64({add:'192.0.2.5',port:1,id:ID,extra:1})),'unsupported-settings');
+ code(()=>parse('vmess://'+b64({add:'192.0.2.5',port:1,id:ID,unknownKey:1})),'unsupported-settings');
  code(()=>parse('vmess://not-json'),'invalid-link');
 });
 test('Trojan: TLS by default, sni / peer, ws transport, insecure flag',()=>{
@@ -50,7 +50,8 @@ test('Hysteria2 / hy2: auth, obfs, port hopping, TLS always on',()=>{
  assert.deepEqual(parse('hy2://user:pass@example.com:443/?sni=example.com&obfs=salamander&obfs-password=ob&mport=20000-30000&insecure=1#H').outbound,
   {type:'hysteria2',tag:'proxy',server:'example.com',server_port:443,server_ports:['20000:30000'],obfs:{type:'salamander',password:'ob'},password:'user:pass',tls:{enabled:true,server_name:'example.com',insecure:true}});
  assert.equal(parse('hysteria2://secret@192.0.2.11#X').outbound.server_port,443);
- code(()=>parse('hysteria2://secret@192.0.2.11:443?pinSHA256=AB'),'unsupported-settings');
+ code(()=>parse('hysteria2://secret@192.0.2.11:443?pinSHA256=AB&insecure=1'),'unsupported-settings');
+ assert.deepEqual(parse('hysteria2://secret@192.0.2.11:443?pinSHA256=AB').warnings,['The certificate pin is not checked; the certificate is verified normally.']);
 });
 test('TUIC: uuid:password, congestion control, relay mode, alpn',()=>{
  assert.deepEqual(parse('tuic://'+ID+':pw@example.com:443?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=example.com#T').outbound,

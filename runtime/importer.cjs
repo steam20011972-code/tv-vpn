@@ -28,7 +28,7 @@ function scan(text){
  if(!lines.length)found.rejected.push('unrecognized-format');
  for(const line of lines){
   if(/^https?:\/\//i.test(line))found.urls.push(line);
-  else if(SCHEMES.test(line))try{found.profiles.push(parse(line));}catch(e){found.rejected.push(note(line.match(SCHEMES)[1].toLowerCase(),e));}
+  else if(SCHEMES.test(line))try{found.profiles.push(parse(line));}catch(e){const r=note(line.match(SCHEMES)[1].toLowerCase(),e);if(r!=='skip')found.rejected.push(r);}
   else found.rejected.push(/^[a-z][a-z0-9+.-]*:\/\//i.test(line)?'unsupported-protocol':'unrecognized-format');
  }
  return found;
