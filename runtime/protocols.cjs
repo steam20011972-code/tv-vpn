@@ -129,7 +129,16 @@ function outbound(o){
 }
 function name(v,fallback='VPN'){let s;try{s=decodeURIComponent(str(v));}catch{s=str(v);}s=s.replace(/[\x00-\x1f\x7f]/g,'').trim().slice(0,64);return s||fallback;}
 // Query parameters: each at most once and from the allowlist.
-function params(q,allowed){const out={};for(const k of new Set(q.keys())){if(!allowed.includes(k))throw fail('unsupported-settings',k);if(q.getAll(k).length!==1)throw fail('invalid-link','repeated '+k);out[k]=q.get(k);}return out;}
+// Decoded like v2rayN (Uri.UnescapeDataString): "+" stays "+", unlike URLSearchParams which turns it into a space
+// and would corrupt base64 passwords; a malformed escape is kept as written.
+function params(raw,allowed){
+ const out=Object.create(null),un=s=>s.replace(/(%[0-9a-f]{2})+/gi,m=>{try{return decodeURIComponent(m);}catch{return m;}});
+ for(const pair of String(raw).replace(/^\?/,'').split('&')){
+  if(!pair)continue;const i=pair.indexOf('='),k=un(i<0?pair:pair.slice(0,i)),v=i<0?'':un(pair.slice(i+1));
+  if(!allowed.includes(k))throw fail('unsupported-settings',k);if(k in out)throw fail('invalid-link','repeated '+k);out[k]=v;
+ }
+ return out;
+}
 // Xray share-link transport parameters (VLESS, Trojan) → sing-box transport.
 function xrayTransport(q){
  const type=(q.type||'tcp').toLowerCase();
@@ -160,14 +169,14 @@ function url(uri){try{return new URL(uri);}catch{throw fail('invalid-link','url 
 const XRAY=['type','security','sni','fp','alpn','pbk','sid','spx','host','path','serviceName','mode','headerType','allowInsecure'];
 const LINKS={
  vless(uri){
-  const u=url(uri),q=params(u.searchParams,[...XRAY,'encryption','flow']);
+  const u=url(uri),q=params(u.search,[...XRAY,'encryption','flow']);
   // VLESS encryption (ML-KEM) exists only in Xray.
   if(q.encryption&&q.encryption!=='none')throw fail('unsupported-by-core','encryption');
   const warnings=q.spx?['Xray spiderX is not used by sing-box.']:[];
   return {name:name(u.hash.slice(1)),warnings,outbound:outbound({type:'vless',server:u.hostname,server_port:u.port,uuid:dec(u.username),...(q.flow&&{flow:q.flow}),tls:xrayTls(q,(q.security||'none').toLowerCase()),transport:xrayTransport(q)})};
  },
  trojan(uri){
-  const u=url(uri),q=params(u.searchParams,[...XRAY,'peer']);
+  const u=url(uri),q=params(u.search,[...XRAY,'peer']);
   if(q.peer&&!q.sni)q.sni=q.peer;
   return {name:name(u.hash.slice(1)),warnings:[],outbound:outbound({type:'trojan',server:u.hostname,server_port:u.port||443,password:dec(u.username),tls:xrayTls(q,(q.security||'tls').toLowerCase()),transport:xrayTransport(q)})};
  },
@@ -192,12 +201,12 @@ const LINKS={
   const plain=(()=>{try{return decodeURIComponent(user);}catch{return '';}})(),creds=plain.includes(':')?plain:b64(user)||'';
   const colon=creds.indexOf(':');if(colon<1)throw fail('invalid-link','userinfo');
   const m=addr.match(/^([^:\[\]]+):(\d{1,5})$/);if(!m){if(addr.startsWith('['))throw fail('unsupported-settings','ipv6 server');throw fail('invalid-link','address');}
-  const q=params(new URLSearchParams(query),['plugin']);if(q.plugin)throw fail('unsupported-settings','plugin');
+  const q=params(query,['plugin']);if(q.plugin)throw fail('unsupported-settings','plugin');
   return {name:name(label),warnings:[],outbound:outbound({type:'shadowsocks',server:m[1],server_port:m[2],method:creds.slice(0,colon).toLowerCase(),password:creds.slice(colon+1)})};
  },
  // hysteria2://auth@host:port/?sni=&insecure=1&obfs=salamander&obfs-password=&mport=20000-30000#name
  hysteria2(uri){
-  const u=url(uri.replace(/^hy2:/i,'hysteria2:')),q=params(u.searchParams,['sni','insecure','obfs','obfs-password','mport','alpn']);
+  const u=url(uri.replace(/^hy2:/i,'hysteria2:')),q=params(u.search,['sni','insecure','obfs','obfs-password','mport','alpn']);
   const auth=dec(u.username)+(u.password?':'+dec(u.password):'');
   const ports=q.mport?q.mport.split(',').map(r=>{const [a,b]=r.trim().split('-');return a+':'+(b||a);}):undefined;
   if(q['obfs-password']&&!q.obfs)throw fail('invalid-link','obfs');
@@ -206,7 +215,7 @@ const LINKS={
  },
  // tuic://uuid:password@host:port?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=&allow_insecure=1#name
  tuic(uri){
-  const u=url(uri),q=params(u.searchParams,['congestion_control','udp_relay_mode','alpn','sni','allow_insecure','insecure','disable_sni']);
+  const u=url(uri),q=params(u.search,['congestion_control','udp_relay_mode','alpn','sni','allow_insecure','insecure','disable_sni']);
   return {name:name(u.hash.slice(1)),warnings:[],outbound:outbound({type:'tuic',server:u.hostname,server_port:u.port,uuid:dec(u.username),password:dec(u.password),
    ...(q.congestion_control&&{congestion_control:q.congestion_control}),...(q.udp_relay_mode&&{udp_relay_mode:q.udp_relay_mode}),
    tls:{enabled:true,...(q.sni&&{server_name:q.sni}),...(bool(q.allow_insecure||q.insecure||'','insecure')&&{insecure:true}),...(bool(q.disable_sni||'','disable_sni')&&{disable_sni:true}),...(q.alpn&&{alpn:q.alpn})}})};

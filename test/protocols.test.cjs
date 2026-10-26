@@ -122,3 +122,9 @@ test('server name: strict hostnames unchanged; comma list, IDN, wildcard and odd
  assert.equal(sni('-bad-.example.com'),'-bad-.example.com');
  assert.throws(()=>sni('a b'),e=>e.code==='invalid-link'&&e.message==='invalid-link: sni len=3 space symbol');
 });
+test('query values decode like v2rayN: "+" is kept, malformed escapes stay as written',()=>{
+ const h=parse('hy2://pw@192.0.2.11:443?obfs=salamander&obfs-password=ab+c%2Bd&sni=example.com').outbound;
+ assert.equal(h.obfs.password,'ab+c+d');
+ assert.equal(parse('hy2://pw@192.0.2.11:443?obfs=salamander&obfs-password=50%25off%zz').outbound.obfs.password,'50%off%zz');
+ code(()=>parse('hy2://pw@192.0.2.11:443?sni=a.example&sni=b.example'),'invalid-link');
+});
