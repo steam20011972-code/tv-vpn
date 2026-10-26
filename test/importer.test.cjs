@@ -103,3 +103,14 @@ test('every supported scheme is imported from one list; Xray-only transports get
  assert.deepEqual(P.list().items.map(x=>x.kind).sort(),['Hysteria2','Shadowsocks','TUIC','Trojan · TLS','VMess · TLS · WS']);
  const visible=fs.readFileSync(BASE+'/profiles/index.json','utf8');for(const s of ['pw',id,'192.0.2.5'])assert.ok(!visible.includes(s),s);
 });
+test('subscription client: v2rayN user agent, stable 0600 device id, empty body has its own reason',async()=>{
+ const cfg=I.curlConfig(SUB),id=I.deviceId();
+ assert.match(id,/^[0-9a-f]{32}$/);assert.equal(I.deviceId(),id);
+ if(unix)assert.equal(fs.statSync(BASE+'/device-id').mode&0o777,0o600);
+ assert.ok(cfg.includes('user-agent = "v2rayN/7.0"'));assert.ok(cfg.includes('header = "x-hwid: '+id+'"'));
+ assert.equal(cfg.split('\n').filter(l=>l.startsWith('url = ')).length,1);
+ assert.equal(I.curlConfig('https://example.com/"\nurl = "http://evil'),null);
+ reset();
+ const r=await I.importText(SUB,{fetch:fetchFrom({[SUB]:'\uFEFF \n'})});
+ assert.deepEqual(r.rejected,{'subscription-no-data':1});assert.equal(P.list().items.length,0);
+});
