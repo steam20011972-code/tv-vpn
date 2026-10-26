@@ -6,7 +6,9 @@
 const crypto=require('crypto'),C=require('./common.cjs');
 const DIR=C.BASE+'/profiles',ID=/^[a-z0-9]{8,16}$/;
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex').slice(0,12);
-function kind(o){return [String(o.type||'').toUpperCase(),o.tls&&o.tls.reality&&o.tls.reality.enabled?'Reality':o.tls&&o.tls.enabled?'TLS':null,o.flow==='xtls-rprx-vision'?'Vision':null].filter(Boolean).join(' · ');}
+const NAMES={vless:'VLESS',vmess:'VMess',trojan:'Trojan',shadowsocks:'Shadowsocks',hysteria2:'Hysteria2',tuic:'TUIC'},TRANSPORTS={ws:'WS',grpc:'gRPC',httpupgrade:'HTTPUpgrade'};
+// QUIC protocols always use TLS, so only TCP-based ones name it.
+function kind(o){const quic=['hysteria2','tuic'].includes(o.type);return [NAMES[o.type]||String(o.type||'').toUpperCase(),o.tls&&o.tls.reality&&o.tls.reality.enabled?'Reality':o.tls&&o.tls.enabled&&!quic?'TLS':null,o.transport&&TRANSPORTS[o.transport.type],o.flow==='xtls-rprx-vision'?'Vision':null].filter(Boolean).join(' · ');}
 function valid(p){return !!(p&&typeof p.name==='string'&&p.outbound&&p.outbound.type&&p.outbound.server);}
 function index(){const i=C.read('profiles/index.json');if(!i||!Array.isArray(i.items))return {active:null,items:[],subscriptions:[]};if(!Array.isArray(i.subscriptions))i.subscriptions=[];return i;}
 function save(i){C.fs.mkdirSync(DIR,{recursive:true,mode:0o700});C.write('profiles/index.json',i);}
