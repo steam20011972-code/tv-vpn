@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TV VPN</title><link rel="stylesheet" href="style.css"></head>
+<body><div class="shell">
+ <header><div class="brand"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="19"/><ellipse cx="24" cy="24" rx="9" ry="19"/><path d="M5 24h38M9 13h30M9 35h30"/></svg>TV VPN</div><div class="header-note">ВАШЕ ПОДКЛЮЧЕНИЕ · НА ТЕЛЕВИЗОРЕ</div><span id="preview" hidden>Предпросмотр</span></header>
+ <main>
+  <section class="connection" aria-labelledby="state-title">
+   <div id="status-pill" class="pill"><i></i><span id="pill-text">Проверяем соединение</span></div>
+   <button id="power" class="power" aria-label="Подключить VPN"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 18v34M28 29a31 31 0 1 0 44 0"/></svg></button>
+   <h1 id="state-title">Подождите…</h1>
+   <p id="state-description">Получаем состояние подключения</p>
+   <div id="connection-meta" class="connection-meta">VLESS + REALITY</div>
+  </section>
+  <aside>
+   <div class="profile-card"><div class="eyebrow">ТЕКУЩИЙ ПРОФИЛЬ</div><div class="profile-row"><div class="server-icon">↗</div><div><h2 id="profile">Мой VPN</h2><p>VLESS · Reality · Vision</p></div><span class="profile-dot"></span></div><div class="profile-bottom"><span>Защита подключения</span><strong id="route-mode">Проверяем</strong></div></div>
+   <button id="autostart" class="setting" aria-pressed="false"><span><strong>Подключать автоматически</strong><small>При включении телевизора</small></span><span class="switch"><i></i></span></button>
+   <button id="diagnostics" class="setting"><span><strong>Состояние и диагностика</strong><small>Проверка сети и подключения</small></span><span class="chevron">›</span></button>
+   <button id="restore" class="setting secondary"><span><strong>Восстановить обычный интернет</strong><small>Отключить VPN и вернуть настройки сети</small></span><span class="chevron">↶</span></button>
+   <p class="footnote">При сбое VPN обычный интернет включится автоматически.<br>Домашняя сеть остаётся доступна.</p>
+  </aside>
+ </main>
+ <footer><span><kbd>OK</kbd> Выбрать <span class="footer-gap"><kbd>← ↑ ↓ →</kbd> Переместить фокус</span></span><span>Закрытие приложения не отключает VPN</span></footer>
+</div>
+<div id="dialog" class="dialog-backdrop" hidden><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><div class="eyebrow">TV VPN</div><h2 id="dialog-title">Диагностика</h2><div id="dialog-content"></div><button id="dialog-close" class="dialog-button">Понятно</button></section></div>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="app.js"></script></body></html>
