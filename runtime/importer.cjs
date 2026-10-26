@@ -31,19 +31,37 @@ function scan(text){
  }
  return found;
 }
+// Panels choose the answer by client: by User-Agent the format, and with a device limit (Remnawave HWID)
+// an empty body unless the client sends a device id. We ask as a v2rayN-compatible client (share links)
+// with a random per-TV id in BASE/device-id (0600).
+const UA='v2rayN/7.0';
+function deviceId(){
+ const f=C.BASE+'/device-id';try{const id=C.fs.readFileSync(f,'utf8').trim();if(/^[0-9a-f]{32}$/.test(id))return id;}catch{}
+ const id=require('crypto').randomBytes(16).toString('hex');C.fs.writeFileSync(f,id,{mode:0o600});return id;
+}
 // The URL goes to curl through its config on stdin, so the subscription token never appears on a command line.
+function curlConfig(url){
+ let u;try{u=new URL(url);}catch{return null;}
+ if(!/^https?:$/.test(u.protocol)||url.length>2048||/["\\\s\x00-\x1f]/.test(url))return null;
+ return ['url = "'+url+'"','user-agent = "'+UA+'"','header = "x-hwid: '+deviceId()+'"','header = "x-device-os: webOS"','header = "x-device-model: LG TV"','write-out = "%{stderr}%{http_code} %{size_download} %{content_type}"',''].join('\n');
+}
+// Status, size and content type (never the body or URL) go to events.log, so a rejected subscription can be diagnosed.
 function download(url){return new Promise((resolve,reject)=>{
- let u;try{u=new URL(url);}catch{return reject(fail('subscription-failed'));}
- if(!/^https?:$/.test(u.protocol)||url.length>2048||/["\\\s\x00-\x1f]/.test(url))return reject(fail('subscription-failed'));
- const child=C.cp.execFile('curl',['--silent','--fail','--location','--max-redirs','3','--proto','=http,https','--proto-redir','=http,https','--max-time','15','--max-filesize',String(MAX_SUBSCRIPTION),'-K','-'],{timeout:17000,maxBuffer:MAX_SUBSCRIPTION,encoding:'utf8'},(err,out)=>err?reject(fail('subscription-failed')):resolve(out));
- child.stdin.on('error',()=>{});child.stdin.end('url = "'+url+'"\n');
+ const config=curlConfig(url);if(!config)return reject(fail('subscription-failed'));
+ const child=C.cp.execFile('curl',['--silent','--fail','--location','--max-redirs','3','--proto','=http,https','--proto-redir','=http,https','--max-time','15','--max-filesize',String(MAX_SUBSCRIPTION),'-K','-'],{timeout:17000,maxBuffer:MAX_SUBSCRIPTION,encoding:'utf8'},(err,out,meta)=>{
+  const [status,size,...type]=String(meta||'').trim().split(' ');
+  C.log((err?'subscription-error curl='+(err.code||'?')+' http=':'subscription-response ')+(/^\d{3}$/.test(status)?status:'-')+' '+(/^\d+$/.test(size)?size:'-')+' '+(type.join(' ').replace(/[^\w.+\/;= -]/g,'').slice(0,60)||'-'));
+  err?reject(fail('subscription-failed')):resolve(out);
+ });
+ child.stdin.on('error',()=>{});child.stdin.end(config);
 });}
 function blank(){return {added:0,updated:0,removed:0,rejected:{},activeChanged:false};}
 function count(result,r){result.rejected[r]=(result.rejected[r]||0)+1;}
 function merge(result,r){for(const k of ['added','updated','removed'])result[k]+=r[k]||0;if(r.activeChanged)result.activeChanged=true;}
 // Fetches a subscription and stores its profiles. Links inside a subscription are taken, further URLs are not followed.
 async function subscribe(url,result,fetch){
- const found=scan(await fetch(url));found.rejected.forEach(r=>count(result,r));found.urls.forEach(()=>count(result,'unsupported-protocol'));
+ const body=await fetch(url);if(!String(body).replace(/^﻿/,'').trim())throw fail('subscription-no-data');
+ const found=scan(body);found.rejected.forEach(r=>count(result,r));found.urls.forEach(()=>count(result,'unsupported-protocol'));
  if(!found.profiles.length)throw fail('subscription-empty');
  if(found.profiles.length>MAX_PROFILES)count(result,'too-many');
  merge(result,P.replace(url,found.profiles.slice(0,MAX_PROFILES)));
@@ -79,4 +97,4 @@ async function refreshStale(opts={}){
  for(const s of P.subscriptions())if(!s.updatedAt||Date.now()-s.updatedAt>=DAY)try{merge(result,await refresh(s.id,opts));}catch{}
  return result;
 }
-module.exports={MAX_TEXT,scan,fromOutbound,download,importText,importUsb,refresh,refreshStale};
+module.exports={MAX_TEXT,scan,fromOutbound,curlConfig,deviceId,download,importText,importUsb,refresh,refreshStale};
