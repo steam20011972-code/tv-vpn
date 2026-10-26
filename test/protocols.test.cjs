@@ -128,3 +128,9 @@ test('query values decode like v2rayN: "+" is kept, malformed escapes stay as wr
  assert.equal(parse('hy2://pw@192.0.2.11:443?obfs=salamander&obfs-password=50%25off%zz').outbound.obfs.password,'50%off%zz');
  code(()=>parse('hy2://pw@192.0.2.11:443?sni=a.example&sni=b.example'),'invalid-link');
 });
+test('Shadowsocks from Xray-style panels: type=tcp and headerType=none accepted, other transports refused',()=>{
+ const u='ss://'+Buffer.from('chacha20-ietf-poly1305:pw').toString('base64url')+'@192.0.2.8:8388';
+ const plain=parse(u+'#SS').outbound;
+ assert.deepEqual(parse(u+'?type=tcp#SS').outbound,plain);assert.deepEqual(parse(u+'/?type=tcp&headerType=none#SS').outbound,plain);
+ code(()=>parse(u+'?type=ws'),'unsupported-settings');code(()=>parse(u+'?type=tcp&headerType=http'),'unsupported-settings');
+});

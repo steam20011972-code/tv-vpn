@@ -201,7 +201,10 @@ const LINKS={
   const plain=(()=>{try{return decodeURIComponent(user);}catch{return '';}})(),creds=plain.includes(':')?plain:b64(user)||'';
   const colon=creds.indexOf(':');if(colon<1)throw fail('invalid-link','userinfo');
   const m=addr.match(/^([^:\[\]]+):(\d{1,5})$/);if(!m){if(addr.startsWith('['))throw fail('unsupported-settings','ipv6 server');throw fail('invalid-link','address');}
-  const q=params(query,['plugin']);if(q.plugin)throw fail('unsupported-settings','plugin');
+  const q=params(query,['plugin','type','headerType']);if(q.plugin)throw fail('unsupported-settings','plugin');
+  // Xray-style panels add type=tcp (plain TCP, what Shadowsocks does anyway); any other transport is refused.
+  if(q.type&&!['tcp','raw'].includes(q.type.toLowerCase()))throw fail('unsupported-settings','type');
+  if(q.headerType&&q.headerType!=='none')throw fail('unsupported-settings','headerType');
   return {name:name(label),warnings:[],outbound:outbound({type:'shadowsocks',server:m[1],server_port:m[2],method:creds.slice(0,colon).toLowerCase(),password:creds.slice(colon+1)})};
  },
  // hysteria2://auth@host:port/?sni=&insecure=1&obfs=salamander&obfs-password=&mport=20000-30000#name
