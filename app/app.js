@@ -1,5 +1,5 @@
 (function(){'use strict';
- var $=function(id){return document.getElementById(id);},pending=[],current={},requesting=false,demo=typeof PalmServiceBridge==='undefined',priorFocus=null,phase='checking',installing=false,autoInstall=true,demoInstalled=false;
+ var $=function(id){return document.getElementById(id);},pending=[],current={},requesting=false,demo=typeof PalmServiceBridge==='undefined',priorFocus=null,phase='checking',installing=false,autoInstall=true,demoInstalled=false,appVersion=null;
  var L=window.I18N,t=L.t,M=L.messages,labels=M.states,errors=M.errors,setupErrors=M.setupErrors,reasons=M.reasons;
  var checkLabels=['root','arch','node','tun','ip','connmanctl'];
  // Directory of the installed app; setup.cjs ships inside it. commands.js lets only plain path characters through.
@@ -36,12 +36,14 @@
   // Preview: index.html#setup shows the install screen in a desktop browser; #setup-fail makes the installation fail.
   if(demo){
    if(action==='install')return new Promise(function(resolve,reject){setTimeout(function(){if(location.hash==='#setup-fail')reject(Error(setupErrors['install-failed']));else{demoInstalled=true;resolve({ok:true,ready:true,current:true,profile:true,checks:{}});}},3000);});
-   return Promise.resolve(action==='status'&&/^#setup/.test(location.hash)&&!demoInstalled?{ok:true,ready:true,current:false,installed:null,appVersion:'0.2.0',checks:{root:true,arch:true,node:true,tun:true,ip:true,connmanctl:true}}:{ok:true,ready:true,current:true,profile:true,checks:{}});
+   return Promise.resolve(action==='status'&&/^#setup/.test(location.hash)&&!demoInstalled?{ok:true,ready:true,current:false,installed:null,appVersion:'0.2.0',checks:{root:true,arch:true,node:true,tun:true,ip:true,connmanctl:true}}:{ok:true,ready:true,current:true,profile:true,appVersion:'0.2.0',checks:{}}).then(showVersion);
   }
   // commands.js prefers the root-only installed setup.cjs; see the comment there.
   var command=window.TVCommands.setup(appDir,action,arg);if(!command)return Promise.reject(Error(setupErrors['invalid-action']));
-  return exec(command,action==='status'?15000:120000);
+  return exec(command,action==='status'?15000:120000).then(showVersion);
  }
+ // Every setup.cjs answer carries the version from the installed app's appinfo.json; the footer and diagnostics show it.
+ function showVersion(s){if(s&&s.appVersion){appVersion=s.appVersion;$('version').textContent='v'+appVersion;}return s;}
  // runtime/profiles.cjs labels a profile without certificate checks in English; show it in the TV's language.
  function kindText(k){return String(k||'').replace('No cert check',t('kind.insecure'));}
  function render(s){current=s;s.profileKind=s.profileKind&&kindText(s.profileKind);var key=s.state||'disconnected',label=labels[key]||labels.fallback;document.body.className=key;$('state-title').textContent=label[0];$('pill-text').textContent=label[2];$('state-description').textContent=errors[s.error]||(!s.profile&&key==='disconnected'?t('state.noProfile'):label[1]);$('profile').textContent=s.profile||t('profile.none');$('profile-kind').textContent=s.profileKind||t('profile.open');$('route-mode').textContent=t(key==='connected'?'route.vpn':'route.direct');$('power').setAttribute('aria-label',t(key==='connected'?'power.disconnect':'power.connect'));$('power').setAttribute('aria-busy',key==='connecting'||key==='disconnecting'?'true':'false');$('autostart').setAttribute('aria-pressed',s.autostart?'true':'false');var meta=(s.profileKind||'').toUpperCase();$('connection-meta').textContent=key==='connected'?meta+' · '+(s.latency||'—')+' '+t('ms'):meta;}
@@ -74,7 +76,7 @@
  function dialogActions(actions){var box=$('dialog-actions');box.textContent='';actions.forEach(function(a){var b=document.createElement('button');b.className='dialog-button'+(a.kind?' '+a.kind:'');b.textContent=a.label;b.onclick=a.fn;box.appendChild(b);});box.firstChild.focus();}
  function openDialog(title,content,actions){leaveDialog();if($('dialog').hidden)priorFocus=document.activeElement;$('dialog-title').textContent=title;$('dialog-content').textContent='';$('dialog-content').appendChild(content);$('dialog').hidden=false;dialogActions(actions);}
  function closeDialog(){leaveDialog();$('dialog').hidden=true;if(priorFocus&&priorFocus.offsetParent!==null)priorFocus.focus();}
- function diagnostics(s){var rows=[[t('diag.connection'),(labels[s.state]||labels.disconnected)[0]],[t('diag.autostart'),t(s.autostart?'diag.on':'diag.off')],[t('diag.check'),t(s.healthy?'diag.checkOk':'diag.checkNo')],['DNS',t('diag.dnsText')],['IPv6',t('diag.ipv6Text')],[t('diag.error'),errors[s.error]||s.error||t('diag.noError')]];var dl=document.createElement('dl');rows.forEach(function(r){var dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=r[0];dd.textContent=r[1];dl.appendChild(dt);dl.appendChild(dd);});
+ function diagnostics(s){var rows=[[t('diag.connection'),(labels[s.state]||labels.disconnected)[0]],[t('diag.autostart'),t(s.autostart?'diag.on':'diag.off')],[t('diag.check'),t(s.healthy?'diag.checkOk':'diag.checkNo')],['DNS',t('diag.dnsText')],['IPv6',t('diag.ipv6Text')],[t('diag.error'),errors[s.error]||s.error||t('diag.noError')],[t('diag.version'),appVersion||'—']];var dl=document.createElement('dl');rows.forEach(function(r){var dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=r[0];dd.textContent=r[1];dl.appendChild(dt);dl.appendChild(dd);});
   openDialog(t('diag.dialog'),dl,[{label:t('ok'),fn:closeDialog},{label:t('uninstall.open'),kind:'danger',fn:confirmUninstall}]);}
  function confirmUninstall(){var p=document.createElement('p');p.className='dialog-text';p.textContent=t('uninstall.text');
   openDialog(t('uninstall.title'),p,[{label:t('cancel'),fn:closeDialog},{label:t('uninstall.keep'),kind:'danger',fn:function(){uninstall('keep-profile');}},{label:t('uninstall.all'),kind:'danger',fn:function(){uninstall('delete-profile');}}]);}
