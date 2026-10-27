@@ -1,7 +1,7 @@
 name: build
 
 # Every push and pull request: tests and an IPK build (core hash checked against core.lock.json).
-# A tag vX.Y.Z matching app/appinfo.json publishes a GitHub Release with the IPK and its .sha256.
+# A tag vX.Y.Z matching app/appinfo.json publishes a GitHub Release with the IPK, its .sha256 and the Homebrew Channel manifest.
 on:
   push:
     branches: [main]
@@ -61,6 +61,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd dist && sha256sum -c *.ipk.sha256 && cd ..
-          gh release create "${GITHUB_REF_NAME}" dist/*.ipk dist/*.ipk.sha256 \
-            --title "MEDZH VPN ${GITHUB_REF_NAME}" --prerelease \
+          node tools/manifest.cjs dist
+          # Not a pre-release: releases/latest/download/ (the catalog's manifestUrl) skips pre-releases.
+          gh release create "${GITHUB_REF_NAME}" dist/*.ipk dist/*.ipk.sha256 dist/*.manifest.json \
+            --title "MEDZH VPN ${GITHUB_REF_NAME}" \
             --notes "Beta: tested on one TV model. Requires a rooted LG webOS TV with Homebrew Channel \"Root OK\". Check the download: sha256sum -c *.ipk.sha256"
