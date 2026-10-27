@@ -7,8 +7,10 @@ const crypto=require('crypto'),C=require('./common.cjs');
 const DIR=C.BASE+'/profiles',ID=/^[a-z0-9]{8,16}$/;
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex').slice(0,12);
 const NAMES={vless:'VLESS',vmess:'VMess',trojan:'Trojan',shadowsocks:'Shadowsocks',hysteria2:'Hysteria2',tuic:'TUIC'},TRANSPORTS={ws:'WS',grpc:'gRPC',httpupgrade:'HTTPUpgrade'};
-// QUIC protocols always use TLS, so only TCP-based ones name it.
-function kind(o){const quic=['hysteria2','tuic'].includes(o.type);return [NAMES[o.type]||String(o.type||'').toUpperCase(),o.tls&&o.tls.reality&&o.tls.reality.enabled?'Reality':o.tls&&o.tls.enabled&&!quic?'TLS':null,o.transport&&TRANSPORTS[o.transport.type],o.flow==='xtls-rprx-vision'?'Vision':null].filter(Boolean).join(' · ');}
+// QUIC protocols always use TLS, so only TCP-based ones name it. INSECURE marks a profile without certificate checks;
+// the app shows it in the TV's language.
+const INSECURE='No cert check';
+function kind(o){const quic=['hysteria2','tuic'].includes(o.type);return [NAMES[o.type]||String(o.type||'').toUpperCase(),o.tls&&o.tls.reality&&o.tls.reality.enabled?'Reality':o.tls&&o.tls.enabled&&!quic?'TLS':null,o.transport&&TRANSPORTS[o.transport.type],o.flow==='xtls-rprx-vision'?'Vision':null,o.tls&&o.tls.insecure?INSECURE:null].filter(Boolean).join(' · ');}
 function valid(p){return !!(p&&typeof p.name==='string'&&p.outbound&&p.outbound.type&&p.outbound.server);}
 function index(){const i=C.read('profiles/index.json');if(!i||!Array.isArray(i.items))return {active:null,items:[],subscriptions:[]};if(!Array.isArray(i.subscriptions))i.subscriptions=[];return i;}
 function save(i){C.fs.mkdirSync(DIR,{recursive:true,mode:0o700});C.write('profiles/index.json',i);}
@@ -35,6 +37,8 @@ function migrate(){
 }
 function list(){
  migrate();const i=index();
+ // Items stored before INSECURE existed get the label from their profile file once.
+ if(!i.labelled&&i.items.length){for(const x of i.items){const p=C.read('profiles/'+x.id+'.json');if(valid(p))x.kind=kind(p.outbound);}i.labelled=true;save(i);}
  return {active:i.active,items:i.items.map(x=>({id:x.id,name:x.name,kind:x.kind,subscription:!!x.subscription})),subscriptions:i.subscriptions.map(s=>({id:s.id,count:s.count,updatedAt:s.updatedAt}))};
 }
 function active(){migrate();const i=index();return i.active?C.read('profiles/'+i.active+'.json'):null;}
@@ -64,4 +68,4 @@ function replace(url,profiles){
  return {subscription:sub,added:created,updated:ids.length-created,removed,activeChanged:!!before&&before!==i.active};
 }
 function subscriptions(){return index().subscriptions;}
-module.exports={ID,kind,add,addMany,migrate,list,active,activeItem,select,remove,subscriptionUrl,replace,subscriptions};
+module.exports={ID,INSECURE,kind,add,addMany,migrate,list,active,activeItem,select,remove,subscriptionUrl,replace,subscriptions};

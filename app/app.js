@@ -2,7 +2,7 @@
  var $=function(id){return document.getElementById(id);},pending=[],current={},requesting=false,demo=typeof PalmServiceBridge==='undefined',priorFocus=null,phase='checking';
  var L=window.I18N,t=L.t,M=L.messages,labels=M.states,errors=M.errors,setupErrors=M.setupErrors,reasons=M.reasons;
  var checkLabels=['root','arch','node','tun','ip','connmanctl'];
- // Directory of the installed app; setup.cjs ships inside it. Only plain path characters reach the exec command line.
+ // Directory of the installed app; setup.cjs ships inside it. commands.js lets only plain path characters through.
  var appDir=decodeURIComponent(location.pathname).replace(/\/[^\/]*$/,'');
  function exec(command,timeout){return new Promise(function(resolve,reject){
   var bridge=new PalmServiceBridge(),ended=false;pending.push(bridge);
@@ -27,19 +27,21 @@
  }
  function call(action,arg){
   if(demo)return demoCall(action,arg);
-  var allowed=['start','stop','status','set-autostart','diagnostics','restore-network','profiles','select','delete','import-begin','import-status','import-end','import-usb','refresh-subscription'];
-  // Profile and subscription ids are the only free-form argument and are checked as strictly as in runtime/ctl.cjs.
-  if(allowed.indexOf(action)<0||(action==='set-autostart'?['on','off'].indexOf(arg)<0:['select','delete','refresh-subscription'].indexOf(action)>=0?!/^[a-z0-9]{8,16}$/.test(arg||''):!!arg))return Promise.reject(Error(setupErrors['invalid-action']));
+  // Allowed actions and argument checks live in commands.js.
+  var command=window.TVCommands.ctl(action,arg);if(!command)return Promise.reject(Error(setupErrors['invalid-action']));
   // USB files and subscriptions may download up to three subscriptions (15 s each).
-  return exec('/usr/bin/node /media/developer/tv-vpn/runtime/ctl.cjs '+action+(arg?' '+arg:''),action==='import-usb'||action==='refresh-subscription'?65000:12000);
+  return exec(command,action==='import-usb'||action==='refresh-subscription'?65000:12000);
  }
  function setup(action,arg){
   // Preview: index.html#setup shows the install screen in a desktop browser.
   if(demo)return Promise.resolve(action==='status'&&location.hash==='#setup'?{ok:true,ready:true,current:false,installed:null,appVersion:'0.2.0',checks:{root:true,arch:true,node:true,tun:true,ip:true,connmanctl:true}}:{ok:true,ready:true,current:true,profile:true,checks:{}});
-  if(['status','install','uninstall'].indexOf(action)<0||arg&&['keep-profile','delete-profile'].indexOf(arg)<0||!/^\/[A-Za-z0-9._\/-]+$/.test(appDir))return Promise.reject(Error(setupErrors['invalid-action']));
-  return exec('/usr/bin/node '+appDir+'/runtime/setup.cjs '+action+(arg?' '+arg:''),action==='status'?15000:120000);
+  // commands.js prefers the root-only installed setup.cjs; see the comment there.
+  var command=window.TVCommands.setup(appDir,action,arg);if(!command)return Promise.reject(Error(setupErrors['invalid-action']));
+  return exec(command,action==='status'?15000:120000);
  }
- function render(s){current=s;var key=s.state||'disconnected',label=labels[key]||labels.fallback;document.body.className=key;$('state-title').textContent=label[0];$('pill-text').textContent=label[2];$('state-description').textContent=errors[s.error]||(!s.profile&&key==='disconnected'?t('state.noProfile'):label[1]);$('profile').textContent=s.profile||t('profile.none');$('profile-kind').textContent=s.profileKind||t('profile.open');$('route-mode').textContent=t(key==='connected'?'route.vpn':'route.direct');$('power').setAttribute('aria-label',t(key==='connected'?'power.disconnect':'power.connect'));$('power').setAttribute('aria-busy',key==='connecting'||key==='disconnecting'?'true':'false');$('autostart').setAttribute('aria-pressed',s.autostart?'true':'false');var meta=(s.profileKind||'').toUpperCase();$('connection-meta').textContent=key==='connected'?meta+' · '+(s.latency||'—')+' '+t('ms'):meta;}
+ // runtime/profiles.cjs labels a profile without certificate checks in English; show it in the TV's language.
+ function kindText(k){return String(k||'').replace('No cert check',t('kind.insecure'));}
+ function render(s){current=s;s.profileKind=s.profileKind&&kindText(s.profileKind);var key=s.state||'disconnected',label=labels[key]||labels.fallback;document.body.className=key;$('state-title').textContent=label[0];$('pill-text').textContent=label[2];$('state-description').textContent=errors[s.error]||(!s.profile&&key==='disconnected'?t('state.noProfile'):label[1]);$('profile').textContent=s.profile||t('profile.none');$('profile-kind').textContent=s.profileKind||t('profile.open');$('route-mode').textContent=t(key==='connected'?'route.vpn':'route.direct');$('power').setAttribute('aria-label',t(key==='connected'?'power.disconnect':'power.connect'));$('power').setAttribute('aria-busy',key==='connecting'||key==='disconnecting'?'true':'false');$('autostart').setAttribute('aria-pressed',s.autostart?'true':'false');var meta=(s.profileKind||'').toUpperCase();$('connection-meta').textContent=key==='connected'?meta+' · '+(s.latency||'—')+' '+t('ms'):meta;}
  function toast(message){$('toast').textContent=message;$('toast').hidden=false;setTimeout(function(){$('toast').hidden=true;},5000);}
  function refresh(){if(phase!=='main'||requesting||document.hidden)return;requesting=true;call('status').then(render).catch(function(){ $('state-title').textContent=t('service.down');$('state-description').textContent=t('service.downText');$('pill-text').textContent=t('service.downPill');document.body.className='fallback';}).then(function(){requesting=false;});}
  function enterMain(s){phase='main';$('setup-screen').hidden=true;$('main').hidden=false;$('power').focus();refresh();}
@@ -78,7 +80,7 @@
   if(!list.items.length){var empty=document.createElement('p');empty.className='dialog-text';empty.textContent=t('profiles.empty');box.appendChild(empty);}
   list.items.forEach(function(it){
    var row=document.createElement('div'),pick=document.createElement('button'),name=document.createElement('strong'),kind=document.createElement('small'),del=document.createElement('button'),isActive=it.id===list.active;
-   row.className='profile-item'+(isActive?' active':'');pick.className='profile-pick';name.textContent=it.name;kind.textContent=(isActive?t('profiles.current'):'')+(it.kind||'');pick.appendChild(name);pick.appendChild(kind);
+   row.className='profile-item'+(isActive?' active':'');pick.className='profile-pick';name.textContent=it.name;kind.textContent=(isActive?t('profiles.current'):'')+kindText(it.kind);pick.appendChild(name);pick.appendChild(kind);
    pick.onclick=function(){if(isActive)closeDialog();else selectProfile(it);};
    del.className='profile-delete';del.textContent=t('profiles.delete');del.setAttribute('aria-label',t('profiles.deleteAria',{name:it.name}));del.onclick=function(){confirmDelete(it);};
    row.appendChild(pick);row.appendChild(del);box.appendChild(row);if(isActive||!focus)focus=pick;

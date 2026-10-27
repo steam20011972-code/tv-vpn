@@ -15,19 +15,23 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm test
       # Also downloads the pinned sing-box and verifies the archive, binary and license hashes.
-      - run: npm run build
+      # Release tags must be signed (secret TVVPN_SIGNING_KEY); other builds are unsigned unless the secret is set.
+      - name: Build
+        env:
+          TVVPN_SIGNING_KEY: ${{ secrets.TVVPN_SIGNING_KEY }}
+        run: npm run build -- ${{ startsWith(github.ref, 'refs/tags/v') && '--require-signature' || '' }}
       - name: Check package checksum
         working-directory: dist
         run: sha256sum -c *.ipk.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ipk
           path: |
@@ -43,12 +47,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Tag must match the app version
         run: |
           version=$(node -p "require('./app/appinfo.json').version")
           test "${GITHUB_REF_NAME}" = "v${version}" || { echo "Tag ${GITHUB_REF_NAME} does not match app version ${version}"; exit 1; }
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ipk
           path: dist

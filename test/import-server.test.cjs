@@ -67,3 +67,9 @@ test('refuses to listen on a public address or without a supervisor',async()=>{
  assert.equal(await new Promise(r=>child.on('exit',r)),1);
  assert.notEqual(cp.spawnSync(process.execPath,[SERVER,'127.0.0.1']).status,0);
 });
+test('the result page explains a link refused for turning off certificate checks',async()=>{
+ const child=start(()=>({added:0,updated:0,removed:0,rejected:{'insecure-tls':1}})),url=await child.ready;
+ const r=await request(url,{method:'POST',body:'t='+link+'\r\n',lang:'en'});
+ assert.match(r.body,/the link turns off certificate checks: the server could be impersonated/);
+ child.kill();await child.exited;
+});
