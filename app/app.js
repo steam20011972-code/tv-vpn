@@ -13,7 +13,8 @@
    if(!data.ok){var f=Error(setupErrors[data.error]||data.error||t('service.controller'));f.code=data.error;throw f;}done(null,data);}catch(e){done(e);}};
   bridge.call('luna://org.webosbrew.hbchannel.service/exec',JSON.stringify({command:command}));
  });}
- var demoProfiles={active:'demo0001',items:[{id:'demo0001',name:'Amsterdam',kind:'VLESS · Reality · Vision'},{id:'demo0002',name:'Frankfurt',kind:'VLESS · Reality'}],subscriptions:[{id:'demosub01',count:2,updatedAt:Date.now()-3600000}]},demoImport={state:'idle'};
+ var demoProfiles={active:'demo0001',items:[{id:'demo0001',name:'Amsterdam',kind:'VLESS · Reality · Vision'},{id:'demo0002',name:'Frankfurt',kind:'VLESS · Reality'}],subscriptions:[{id:'demosub01',count:2,updatedAt:Date.now()-3600000}]},demoImport={state:'idle'},demoState={state:'disconnected',autostart:false};
+ // The preview keeps its own VPN state: render() replaces current with the screen's view of it ("connecting").
  function demoCall(action,arg){
   var p=demoProfiles,item=function(){return p.items.filter(function(x){return x.id===p.active;})[0];};
   // Preview: a phone "sends" two profiles eight seconds after the QR code appears.
@@ -21,9 +22,9 @@
   if(action==='import-end')demoImport={state:'idle'};
   if(action==='import-usb')return Promise.reject(Error(setupErrors['usb-not-found']));
   if(action==='refresh-subscription')p.subscriptions[0].updatedAt=Date.now();
-  if(action==='start')current={state:'connected',healthy:true,autostart:current.autostart,latency:48};if(action==='stop'||action==='restore-network')current.state='disconnected';if(action==='set-autostart')current.autostart=arg==='on';
-  if(action==='select')p.active=arg;if(action==='delete'){if(arg===p.active&&current.state==='connected')return Promise.reject(Error(setupErrors['profile-in-use']));p.items=p.items.filter(function(x){return x.id!==arg;});if(arg===p.active)p.active=p.items.length?p.items[0].id:null;}
-  var a=item();return Promise.resolve(Object.assign({ok:true,state:'disconnected',autostart:false},current,{profile:a?a.name:null,profileKind:a?a.kind:null,profiles:p,import:demoImport,result:{added:0,updated:2,removed:0,rejected:{}}}));
+  if(action==='start')demoState={state:'connected',healthy:true,autostart:demoState.autostart,latency:48};if(action==='stop'||action==='restore-network')demoState.state='disconnected';if(action==='set-autostart')demoState.autostart=arg==='on';
+  if(action==='select')p.active=arg;if(action==='delete'){if(arg===p.active&&demoState.state==='connected')return Promise.reject(Error(setupErrors['profile-in-use']));p.items=p.items.filter(function(x){return x.id!==arg;});if(arg===p.active)p.active=p.items.length?p.items[0].id:null;}
+  var a=item();return Promise.resolve(Object.assign({ok:true},demoState,{profile:a?a.name:null,profileKind:a?a.kind:null,profiles:p,import:demoImport,result:{added:0,updated:2,removed:0,rejected:{}}}));
  }
  function call(action,arg){
   if(demo)return demoCall(action,arg);

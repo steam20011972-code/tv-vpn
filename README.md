@@ -114,7 +114,7 @@ export TV_SSH_PASSWORD=<root password>   # current process environment only
 
 - `npm test`; `npm run build` downloads the core pinned in `core.lock.json` (`tools/fetch-core.cjs`, SHA256-checked), builds the IPK with runtime and core, and verifies the core hash inside the package.
 - Release packages are signed (Ed25519, `runtime/signature.cjs`); the TV refuses unsigned or altered packages. The build signs with `TVVPN_SIGNING_KEY`, `TVVPN_SIGNING_KEY_FILE` or `~/.tvvpn/release-signing.key`, and CI with the repository secret `TVVPN_SIGNING_KEY`. A fork needs its own key pair and public key in `runtime/signature.cjs`. To install your own unsigned build over SSH, run `setup.cjs install` with `TVVPN_ALLOW_UNSIGNED=1`.
-- CI (`.github/workflows/build.yml`) runs the tests and the build on every push and pull request. A tag `vX.Y.Z` equal to the version in `app/appinfo.json` publishes a pre-release with the IPK and its `.sha256`. Submitting the package to the Homebrew Channel repository for one-click installation is planned after beta feedback.
+- CI (`.github/workflows/build.yml`) runs the tests and the build on every push and pull request. A tag `vX.Y.Z` equal to the version in `app/appinfo.json` publishes a release with the IPK, its `.sha256` and the Homebrew Channel manifest (`tools/manifest.cjs`).
 - `node tools/install-app.cjs` installs the IPK and launches the app.
 - Profile: `TVVPN_PROFILE_FILE=path/to/file node tools/stage.cjs`, or pipe the link via stdin. Keep that file outside the repository and delete it afterwards.
 - Without the app: `node tools/deploy-runtime.cjs` (runtime) and `node tools/set-autostart.cjs on|off`; install over SSH with `/usr/bin/node /media/developer/apps/usr/palm/applications/<id>/runtime/setup.cjs install|status`.

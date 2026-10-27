@@ -114,7 +114,7 @@ export TV_SSH_PASSWORD=<пароль root>   # только в окружени�
 
 - `npm test`; `npm run build` — скачивает ядро по `core.lock.json` (`tools/fetch-core.cjs`, проверка SHA256), собирает IPK с runtime и ядром и проверяет хеш ядра внутри пакета.
 - Релизные пакеты подписаны (Ed25519, `runtime/signature.cjs`); неподписанный или изменённый пакет ТВ не установит. Сборка подписывает ключом из `TVVPN_SIGNING_KEY`, `TVVPN_SIGNING_KEY_FILE` или `~/.tvvpn/release-signing.key`, CI — секретом репозитория `TVVPN_SIGNING_KEY`. Форку нужна своя пара ключей и свой открытый ключ в `runtime/signature.cjs`. Чтобы поставить свою неподписанную сборку по SSH, запустите `setup.cjs install` с `TVVPN_ALLOW_UNSIGNED=1`.
-- CI (`.github/workflows/build.yml`) запускает тесты и сборку на каждый push и pull request. Тег `vX.Y.Z`, совпадающий с версией в `app/appinfo.json`, публикует pre-release с IPK и `.sha256`. Подать пакет в репозиторий Homebrew Channel для установки в один клик планируется после отзывов по beta.
+- CI (`.github/workflows/build.yml`) запускает тесты и сборку на каждый push и pull request. Тег `vX.Y.Z`, совпадающий с версией в `app/appinfo.json`, публикует релиз с IPK, `.sha256` и манифестом Homebrew Channel (`tools/manifest.cjs`).
 - `node tools/install-app.cjs` — установить IPK и открыть приложение.
 - Профиль: `TVVPN_PROFILE_FILE=путь/к/файлу node tools/stage.cjs` или передайте ссылку через stdin. Файл со ссылкой храните вне репозитория и удалите после импорта.
 - Без приложения: `node tools/deploy-runtime.cjs` (runtime) и `node tools/set-autostart.cjs on|off`; установка по SSH — `/usr/bin/node /media/developer/apps/usr/palm/applications/<id>/runtime/setup.cjs install|status`.
