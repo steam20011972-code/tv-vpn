@@ -35,10 +35,13 @@ const cli=require.resolve('@webos-tools/cli/bin/ares-package.js');
 // --no-minify: files ship exactly as in Git, so vendor/qrcode.js keeps its MIT header.
 cp.execFileSync(process.execPath,[cli,stage,'-o','dist','--no-minify'],{stdio:'inherit'});
 const file=`${id}_${version}_all.ipk`,ipk=require('./ipk.cjs');
-// The installer keeps tar modes: no entry may be writable by group or others (runtime/setup.cjs runs as root).
+// The installer keeps tar modes and owners: no entry may be writable by group or others, and every entry is root's
+// (runtime/setup.cjs runs as root and refuses anything else).
 ipk.normalize('dist/'+file);
 const loose=Object.entries(ipk.packageModes('dist/'+file)).filter(([,m])=>m&0o022).map(([n])=>n);
 if(loose.length)throw Error('Writable by group or others in package: '+loose.join(', '));
+const foreign=Object.entries(ipk.packageOwners('dist/'+file)).filter(([,o])=>o!=='0:0').map(([n])=>n);
+if(foreign.length)throw Error('Not owned by root in package: '+foreign.join(', '));
 // Verify what was actually packaged, not the staging copy.
 const packaged=ipk.files('dist/'+file);
 const inPkg=name=>{const b=packaged[`usr/palm/applications/${id}/${name}`];if(!b)throw Error('Missing from package: '+name);return b;};
