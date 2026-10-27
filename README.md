@@ -151,6 +151,18 @@ Open an [issue](https://github.com/steam20011972-code/tv-vpn/issues/new/choose) 
 
 It only reads files and prints JSON: TV model, webOS version, the install checks, app and core versions, VPN state, protocol labels and recent event codes. Profile names, servers, links, subscription URLs, addresses, serial numbers and MACs are left out. Still look it over before posting.
 
+## Support
+
+MEDZH VPN is free. If it is useful to you, you can support development with a donation:
+
+| Coin | Network | Address |
+|---|---|---|
+| USDT | TON | `UQBn42QVGWfeh2cD4ebmpMCT4eqLfgoeVmdk1bvXjHjUm4cg` |
+
+Send USDT only on the **TON** network. Coins sent on another network (TRC-20, ERC-20, BEP-20 and so on) are lost.
+
+Questions and feedback: Telegram [@medzh_vpn](https://t.me/medzh_vpn). Bugs go to [issues](https://github.com/steam20011972-code/tv-vpn/issues/new/choose); vulnerabilities only as described in [SECURITY.md](SECURITY.md), never in Telegram.
+
 ## Security
 
 Profiles, keys and subscription URLs never go into Git, the IPK, logs or diagnostics; on the TV they are mode 0600, and import results show only counts. To report a vulnerability see [SECURITY.md](SECURITY.md).

@@ -3,3 +3,6 @@ contact_links:
   - name: Security vulnerability / Уязвимость
     url: https://github.com/steam20011972-code/tv-vpn/security/advisories/new
     about: Report privately, never in a public issue. / Сообщайте приватно, не в публичном issue.
+  - name: Questions and feedback / Вопросы и отзывы
+    url: https://t.me/medzh_vpn
+    about: Telegram @medzh_vpn. Not for bugs or vulnerabilities. / Не для ошибок и уязвимостей.

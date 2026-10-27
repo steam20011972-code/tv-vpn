@@ -4,6 +4,8 @@
 
 Please report vulnerabilities privately through the repository's **Security → Report a vulnerability** (GitHub private advisory). Do not open a public issue for security problems.
 
+Do not send vulnerabilities to the project's Telegram ([@medzh_vpn](https://t.me/medzh_vpn)); it is for questions and feedback only.
+
 Never include VPN links, UUIDs, keys, server addresses, passwords or raw sing-box logs in reports. Replace them with placeholders.
 
 ## Scope
