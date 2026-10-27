@@ -30,7 +30,24 @@ A VPN client for LG webOS built on [sing-box](https://github.com/SagerNet/sing-b
 
 ## Installation
 
-1. **Root and Homebrew Channel.** Root the TV with a method that fits its firmware (see [webosbrew.org/rooting](https://www.webosbrew.org/rooting/)) and make sure Homebrew Channel → Settings shows "Root OK".
+### Prepare the TV: root with DangBro
+
+If Homebrew Channel → Settings already shows **"Root OK"**, skip to installing MEDZH VPN below.
+
+For your own compatible TV, use [DangBro](https://github.com/azoffshowy/dangbro). Its author lists webOS 7.x–25 and DVB-tuner models; the webOS version alone does not guarantee compatibility with a particular firmware. This project records successful rooting of an LG 55UA75009LA with webOS 25, firmware 33.31.61.
+
+1. Connect the computer and TV to the same home network; find the TV's IP address in its network settings.
+2. On the computer, open the [DangBro page](https://azoffshowy.github.io/dangbro/), enter the TV's IP address and click **connect**.
+3. Accept the pairing prompt on the TV. DangBro automatically obtains root and installs Homebrew Channel. **It removes the Developer Mode app if installed**; you do not need to install that app beforehand for this method.
+4. Wait for a success message and reboot the TV. Then open Homebrew Channel → Settings and confirm **"Root OK"**.
+
+For a certificate error, open `https://<TV-IP>:3001/` in the same browser and accept only your own TV's self-signed certificate, then reconnect. If Homebrew Channel is missing after reboot, check that Quick Start+ is disabled. See the [author's troubleshooting instructions](https://github.com/azoffshowy/dangbro#troubleshooting) for other errors and limitations. If unsupported, check alternatives at [CanI.RootMy.TV](https://cani.rootmy.tv/) and [webOS Homebrew](https://www.webosbrew.org/rooting/).
+
+Sources checked on October 27, 2026. Root does not guarantee VPN compatibility: the component installation screen checks that separately.
+
+### Install MEDZH VPN
+
+1. **Check root.** Homebrew Channel → Settings must show "Root OK" (see preparation above).
 2. **Download** `io.github.steam20011972-code.tvvpn_<version>_all.ipk` and its `.sha256` from [Releases](https://github.com/steam20011972-code/tv-vpn/releases) and check it: `sha256sum -c io.github.steam20011972-code.tvvpn_<version>_all.ipk.sha256`.
 3. **Install the IPK** with [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop), with `ares-install --device <tv> <file>.ipk`, or over SSH: copy it to `/tmp/tv-vpn.ipk` and run
    `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972-code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
