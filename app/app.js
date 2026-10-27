@@ -1,5 +1,5 @@
 (function(){'use strict';
- var $=function(id){return document.getElementById(id);},pending=[],current={},requesting=false,demo=typeof PalmServiceBridge==='undefined',priorFocus=null,phase='checking';
+ var $=function(id){return document.getElementById(id);},pending=[],current={},requesting=false,demo=typeof PalmServiceBridge==='undefined',priorFocus=null,phase='checking',installing=false,autoInstall=true,demoInstalled=false;
  var L=window.I18N,t=L.t,M=L.messages,labels=M.states,errors=M.errors,setupErrors=M.setupErrors,reasons=M.reasons;
  var checkLabels=['root','arch','node','tun','ip','connmanctl'];
  // Directory of the installed app; setup.cjs ships inside it. commands.js lets only plain path characters through.
@@ -33,8 +33,11 @@
   return exec(command,action==='import-usb'||action==='refresh-subscription'?65000:12000);
  }
  function setup(action,arg){
-  // Preview: index.html#setup shows the install screen in a desktop browser.
-  if(demo)return Promise.resolve(action==='status'&&location.hash==='#setup'?{ok:true,ready:true,current:false,installed:null,appVersion:'0.2.0',checks:{root:true,arch:true,node:true,tun:true,ip:true,connmanctl:true}}:{ok:true,ready:true,current:true,profile:true,checks:{}});
+  // Preview: index.html#setup shows the install screen in a desktop browser; #setup-fail makes the installation fail.
+  if(demo){
+   if(action==='install')return new Promise(function(resolve,reject){setTimeout(function(){if(location.hash==='#setup-fail')reject(Error(setupErrors['install-failed']));else{demoInstalled=true;resolve({ok:true,ready:true,current:true,profile:true,checks:{}});}},3000);});
+   return Promise.resolve(action==='status'&&/^#setup/.test(location.hash)&&!demoInstalled?{ok:true,ready:true,current:false,installed:null,appVersion:'0.2.0',checks:{root:true,arch:true,node:true,tun:true,ip:true,connmanctl:true}}:{ok:true,ready:true,current:true,profile:true,checks:{}});
+  }
   // commands.js prefers the root-only installed setup.cjs; see the comment there.
   var command=window.TVCommands.setup(appDir,action,arg);if(!command)return Promise.reject(Error(setupErrors['invalid-action']));
   return exec(command,action==='status'?15000:120000);
@@ -53,12 +56,15 @@
   if(s)checkLabels.forEach(function(k){var li=document.createElement('li');li.className=c[k]?'ok':'missing';li.textContent=M.checks[k];list.appendChild(li);});
   $('setup-title').textContent=!root?setupErrors['not-root']:t(!ready?'setup.unsupported':update?'setup.update':'setup.install');
   $('setup-description').textContent=error||(!root?t('setup.notRootText'):!ready?t('setup.notReadyText'):update?t('setup.updateText',{installed:s.installed.version,app:s.appVersion}):t('setup.installText'));
-  button.dataset.action=root&&ready?'install':'check';button.textContent=root&&ready?$('setup-title').textContent:t('setup.retry');button.removeAttribute('aria-busy');button.focus();
+  // After an error the button checks again, and the check installs again.
+  var canInstall=root&&ready&&!error;button.dataset.action=canInstall?'install':'check';button.textContent=canInstall?$('setup-title').textContent:t('setup.retry');button.removeAttribute('aria-busy');button.focus();
  }
- function check(){phase='checking';return setup('status').then(function(s){if(s.ready&&s.current)enterMain(s);else showSetup(s);}).catch(function(e){showSetup(null,e.code==='no-service'?t('setup.noHomebrew'):e.message);});}
- $('setup-install').onclick=function(){var button=this;if(button.getAttribute('aria-busy')==='true')return;if(button.dataset.action!=='install'){check();return;}
-  button.setAttribute('aria-busy','true');button.textContent=t('setup.installing');
-  setup('install').then(function(s){toast(t('setup.installed'));enterMain(s);}).catch(function(e){setup('status').then(function(s){showSetup(s,e.message);},function(){showSetup(null,e.message);});});};
+ // Components install (or update after a new IPK) by themselves when the app opens; installing keeps
+ // visibilitychange from starting a second run. After uninstall only the button installs them again.
+ function install(){if(installing)return;installing=true;var button=$('setup-install');button.dataset.action='install';button.setAttribute('aria-busy','true');button.textContent=t('setup.installing');
+  setup('install').then(function(s){toast(t('setup.installed'));enterMain(s);}).catch(function(e){return setup('status').then(function(s){showSetup(s,e.message);},function(){showSetup(null,e.message);});}).then(function(){installing=false;});}
+ function check(){phase='checking';return setup('status').then(function(s){if(s.ready&&s.current)enterMain(s);else{showSetup(s);if(s.ready&&autoInstall)install();}}).catch(function(e){showSetup(null,e.code==='no-service'?t('setup.noHomebrew'):e.message);});}
+ $('setup-install').onclick=function(){if(installing)return;if(this.dataset.action==='install')install();else check();};
  $('power').onclick=function(){if(requesting)return;var action=current.state==='connected'||current.state==='connecting'?'stop':'start';requesting=true;call(action).then(function(s){s.state=action==='start'?'connecting':'disconnecting';render(s);}).catch(function(e){toast(e.message);}).then(function(){requesting=false;setTimeout(refresh,1000);});};
  $('autostart').onclick=function(){call('set-autostart',current.autostart?'off':'on').then(render).catch(function(e){toast(e.message);});};
  $('restore').onclick=function(){call('restore-network').then(function(s){render(s);toast(t('restore.done'));setTimeout(refresh,1000);}).catch(function(e){toast(e.message);});};
@@ -73,7 +79,7 @@
  function confirmUninstall(){var p=document.createElement('p');p.className='dialog-text';p.textContent=t('uninstall.text');
   openDialog(t('uninstall.title'),p,[{label:t('cancel'),fn:closeDialog},{label:t('uninstall.keep'),kind:'danger',fn:function(){uninstall('keep-profile');}},{label:t('uninstall.all'),kind:'danger',fn:function(){uninstall('delete-profile');}}]);}
  function uninstall(arg){phase='checking';var p=document.createElement('p');p.className='dialog-text';p.textContent=t('uninstall.progress');$('dialog-content').textContent='';$('dialog-content').appendChild(p);$('dialog-actions').textContent='';
-  setup('uninstall',arg).then(function(s){$('dialog').hidden=true;showSetup(s);toast(t(s.profileRetained?'uninstall.doneKept':'uninstall.doneAll'));}).catch(function(e){$('dialog').hidden=true;phase='main';toast(e.message);refresh();});}
+  setup('uninstall',arg).then(function(s){autoInstall=false;$('dialog').hidden=true;showSetup(s);toast(t(s.profileRetained?'uninstall.doneKept':'uninstall.doneAll'));}).catch(function(e){$('dialog').hidden=true;phase='main';toast(e.message);refresh();});}
  // Profiles screen: OK on a profile makes it active (an active VPN reconnects with it), "Delete" asks first.
  function profilesDialog(r){
   var list=r.profiles||{items:[]},box=document.createElement('div'),focus=null;box.className='profile-list';
@@ -164,6 +170,6 @@
  }
  document.addEventListener('keydown',function(e){var code=e.keyCode,dialogOpen=!$('dialog').hidden;if(code===461||code===27){if(dialogOpen){e.preventDefault();if($('dialog-actions').firstChild)closeDialog();}else if(window.webOS&&webOS.platformBack)webOS.platformBack();else if(window.PalmSystem&&PalmSystem.platformBack)PalmSystem.platformBack();else window.close();return;}if([37,38,39,40].indexOf(code)<0)return;e.preventDefault();var buttons=visible(dialogOpen?'#dialog button':'.shell main button'),active=document.activeElement;if(!buttons.length)return;if(buttons.indexOf(active)<0){buttons[0].focus();return;}var best=nextFocus(buttons,active,code);if(best)best.focus();});
  // Leaving the app (Home) while the QR code is shown also closes the phone page.
- document.addEventListener('visibilitychange',function(){if(document.hidden&&dialogCleanup&&!$('dialog').hidden)closeDialog();if(phase==='main')refresh();else if(phase==='setup'&&!document.hidden&&$('setup-install').getAttribute('aria-busy')!=='true')check();});
+ document.addEventListener('visibilitychange',function(){if(document.hidden&&dialogCleanup&&!$('dialog').hidden)closeDialog();if(phase==='main')refresh();else if(phase==='setup'&&!document.hidden&&!installing)check();});
  L.apply(document);$('preview').hidden=!demo;check();setInterval(refresh,4000);
 })();
