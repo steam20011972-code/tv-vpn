@@ -47,14 +47,27 @@ VPN-клиент для LG webOS на основе [sing-box](https://github.com
 
 ### Установка MEDZH VPN
 
-1. **Проверьте root.** Homebrew Channel → Settings должен показывать «Root OK» (подготовка описана выше).
-2. **Скачайте** `io.github.steam20011972-code.tvvpn_<версия>_all.ipk` и файл `.sha256` из [Releases](https://github.com/steam20011972-code/tv-vpn/releases) и проверьте: `sha256sum -c io.github.steam20011972-code.tvvpn_<версия>_all.ipk.sha256`.
-3. **Установите IPK** через [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop), командой `ares-install --device <tv> <файл>.ipk` или по SSH: скопируйте его в `/tmp/tv-vpn.ipk` и выполните
-   `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972-code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
-4. **Откройте MEDZH VPN → «Установить компоненты».** Приложение проверит телевизор (см. ниже), скопирует ядро sing-box и контроллер из пакета в `/media/developer/tv-vpn` (права 0700/0600) и сверит хеш ядра с `core.lock.json`. Автоподключение по умолчанию выключено.
-5. **Добавьте профиль** (следующий раздел) и нажмите большую кнопку.
+> **После принятия в каталог Homebrew Channel.** Заявка в [webosbrew/apps-repo](https://github.com/webosbrew/apps-repo) ещё на рассмотрении; пока MEDZH VPN нет в Homebrew Channel, используйте [ручную установку](#ручная-установка).
 
-После обновления IPK приложение предложит «Обновить компоненты»; профили и настройки сохраняются, включённый VPN переподключится. Язык приложения — как у телевизора: русский для русского, иначе английский.
+1. **Проверьте root.** Homebrew Channel → Settings должен показывать «Root OK» (подготовка описана выше).
+2. **Установите из Homebrew Channel:** откройте Homebrew Channel → **MEDZH VPN** → **Install**. Homebrew Channel сам скачает IPK из [Releases](https://github.com/steam20011972-code/tv-vpn/releases) проекта и проверит его SHA-256.
+3. **Откройте MEDZH VPN.** Компоненты установятся сами: приложение проверит телевизор (см. ниже), скопирует ядро sing-box и контроллер из пакета в `/media/developer/tv-vpn` (права 0700/0600) и сверит хеш ядра с `core.lock.json`. Если проверка не прошла, на экране будет ошибка и кнопка «Проверить снова». Автоподключение по умолчанию выключено.
+4. **Добавьте профиль** (следующий раздел) и нажмите большую кнопку.
+
+Язык приложения — как у телевизора: русский для русского, иначе английский.
+
+### Обновление
+
+О новой версии сообщает Homebrew Channel: откройте его → MEDZH VPN → **Update**. При следующем открытии приложение само обновит компоненты; профили и настройки сохраняются, включённый VPN переподключится. Само приложение новые версии не проверяет.
+
+### Ручная установка
+
+Без каталога или для установки конкретной версии:
+
+1. **Скачайте** `io.github.steam20011972-code.tvvpn_<версия>_all.ipk` и файл `.sha256` из [Releases](https://github.com/steam20011972-code/tv-vpn/releases) и проверьте: `sha256sum -c io.github.steam20011972-code.tvvpn_<версия>_all.ipk.sha256`.
+2. **Установите IPK** через [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop), командой `ares-install --device <tv> <файл>.ipk` или по SSH: скопируйте его в `/tmp/tv-vpn.ipk` и выполните
+   `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972-code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
+3. **Откройте MEDZH VPN**: компоненты установятся сами, как описано выше. Обновление — так же, более новым IPK.
 
 ### Что проверяет экран установки
 

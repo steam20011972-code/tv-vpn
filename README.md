@@ -47,14 +47,27 @@ Sources checked on October 27, 2026. Root does not guarantee VPN compatibility: 
 
 ### Install MEDZH VPN
 
-1. **Check root.** Homebrew Channel → Settings must show "Root OK" (see preparation above).
-2. **Download** `io.github.steam20011972-code.tvvpn_<version>_all.ipk` and its `.sha256` from [Releases](https://github.com/steam20011972-code/tv-vpn/releases) and check it: `sha256sum -c io.github.steam20011972-code.tvvpn_<version>_all.ipk.sha256`.
-3. **Install the IPK** with [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop), with `ares-install --device <tv> <file>.ipk`, or over SSH: copy it to `/tmp/tv-vpn.ipk` and run
-   `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972-code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
-4. **Open MEDZH VPN → "Install components".** The app checks the TV (see below), copies the sing-box core and the controller from the package into `/media/developer/tv-vpn` (modes 0700/0600) and verifies the core hash against `core.lock.json`. Autostart is off by default.
-5. **Add a profile** (next section) and press the big button.
+> **After acceptance into the Homebrew Channel catalog.** The submission to [webosbrew/apps-repo](https://github.com/webosbrew/apps-repo) is pending; until MEDZH VPN shows up in Homebrew Channel, use [manual installation](#manual-installation).
 
-After an IPK update the app offers "Update components"; profiles and settings are kept, and a VPN that was on reconnects. The app follows the TV's language: Russian for Russian, English otherwise.
+1. **Check root.** Homebrew Channel → Settings must show "Root OK" (see preparation above).
+2. **Install from Homebrew Channel:** open Homebrew Channel → **MEDZH VPN** → **Install**. Homebrew Channel downloads the IPK from this project's [Releases](https://github.com/steam20011972-code/tv-vpn/releases) and checks its SHA-256 itself.
+3. **Open MEDZH VPN.** Components install automatically: the app checks the TV (see below), copies the sing-box core and the controller from the package into `/media/developer/tv-vpn` (modes 0700/0600) and verifies the core hash against `core.lock.json`. If a check fails, the screen shows the error and "Check again". Autostart is off by default.
+4. **Add a profile** (next section) and press the big button.
+
+The app follows the TV's language: Russian for Russian, English otherwise.
+
+### Updates
+
+Homebrew Channel shows when a new version is available: open it → MEDZH VPN → **Update**. The next time you open the app it updates its components by itself; profiles and settings are kept, and a VPN that was on reconnects. The app itself does not check for new versions.
+
+### Manual installation
+
+Without the catalog, or to install a specific version:
+
+1. **Download** `io.github.steam20011972-code.tvvpn_<version>_all.ipk` and its `.sha256` from [Releases](https://github.com/steam20011972-code/tv-vpn/releases) and check it: `sha256sum -c io.github.steam20011972-code.tvvpn_<version>_all.ipk.sha256`.
+2. **Install the IPK** with [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop), with `ares-install --device <tv> <file>.ipk`, or over SSH: copy it to `/tmp/tv-vpn.ipk` and run
+   `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972-code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
+3. **Open MEDZH VPN**: components install automatically, as above. Update the same way with a newer IPK.
 
 ### What the install screen checks
 
