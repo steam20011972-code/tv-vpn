@@ -31,9 +31,10 @@ test('VMess (v2rayN base64 JSON) with ws + TLS, and plain TCP',()=>{
  code(()=>parse('vmess://'+b64({add:'192.0.2.5',port:1,id:ID,unknownKey:1})),'unsupported-settings');
  code(()=>parse('vmess://not-json'),'invalid-link');
 });
-test('Trojan: TLS by default, sni / peer, ws transport, insecure flag',()=>{
+test('Trojan: TLS by default, sni / peer, ws transport; a link without certificate checks is refused',()=>{
  assert.deepEqual(parse('trojan://p%40ss@example.com:443?sni=example.com#TR').outbound,{type:'trojan',tag:'proxy',server:'example.com',server_port:443,password:'p@ss',tls:{enabled:true,server_name:'example.com'}});
- assert.deepEqual(parse('trojan://pw@192.0.2.7:8443?peer=example.com&allowInsecure=1&type=ws&path=%2Ft').outbound,{type:'trojan',tag:'proxy',server:'192.0.2.7',server_port:8443,password:'pw',tls:{enabled:true,server_name:'example.com',insecure:true},transport:{type:'ws',path:'/t'}});
+ assert.deepEqual(parse('trojan://pw@192.0.2.7:8443?peer=example.com&allowInsecure=0&type=ws&path=%2Ft').outbound,{type:'trojan',tag:'proxy',server:'192.0.2.7',server_port:8443,password:'pw',tls:{enabled:true,server_name:'example.com'},transport:{type:'ws',path:'/t'}});
+ code(()=>parse('trojan://pw@192.0.2.7:8443?peer=example.com&allowInsecure=1'),'insecure-tls');
  code(()=>parse('trojan://@example.com:443'),'invalid-link');
 });
 test('Shadowsocks: SIP002 base64url, percent-encoded 2022 key, legacy base64; no plugins or stream ciphers',()=>{
@@ -47,8 +48,9 @@ test('Shadowsocks: SIP002 base64url, percent-encoded 2022 key, legacy base64; no
  code(()=>parse('ss://'+Buffer.from('aes-256-gcm:pw').toString('base64url')+'@[2001:db8::1]:8388'),'unsupported-settings');
 });
 test('Hysteria2 / hy2: auth, obfs, port hopping, TLS always on',()=>{
- assert.deepEqual(parse('hy2://user:pass@example.com:443/?sni=example.com&obfs=salamander&obfs-password=ob&mport=20000-30000&insecure=1#H').outbound,
-  {type:'hysteria2',tag:'proxy',server:'example.com',server_port:443,server_ports:['20000:30000'],obfs:{type:'salamander',password:'ob'},password:'user:pass',tls:{enabled:true,server_name:'example.com',insecure:true}});
+ assert.deepEqual(parse('hy2://user:pass@example.com:443/?sni=example.com&obfs=salamander&obfs-password=ob&mport=20000-30000#H').outbound,
+  {type:'hysteria2',tag:'proxy',server:'example.com',server_port:443,server_ports:['20000:30000'],obfs:{type:'salamander',password:'ob'},password:'user:pass',tls:{enabled:true,server_name:'example.com'}});
+ code(()=>parse('hy2://pw@example.com:443/?sni=example.com&insecure=1#H'),'insecure-tls');
  assert.equal(parse('hysteria2://secret@192.0.2.11#X').outbound.server_port,443);
  code(()=>parse('hysteria2://secret@192.0.2.11:443?pinSHA256=AB&insecure=1'),'unsupported-settings');
  assert.deepEqual(parse('hysteria2://secret@192.0.2.11:443?pinSHA256=AB').warnings,['The certificate pin is not checked; the certificate is verified normally.']);
@@ -109,9 +111,13 @@ test('health: exit equal to a server address, or different from the direct exit;
  assert.equal(exitOk('192.0.2.30',servers,null),true);
  assert.equal(exitOk(null,servers,'198.51.100.1'),false);
 });
-test('v2rayN leniency: first of a host list, relative ws path, allowInsecure in any case',()=>{
- const o=parse('vless://'+ID+'@example.com:443?type=ws&security=tls&host=a.example.com,b.example.com&path=ws&allowInsecure=True').outbound;
- assert.deepEqual(o.transport,{type:'ws',path:'/ws',headers:{Host:'a.example.com'}});assert.equal(o.tls.insecure,true);
+test('v2rayN leniency: first of a host list, relative ws path; allowInsecure is read in any case and refused',()=>{
+ const o=parse('vless://'+ID+'@example.com:443?type=ws&security=tls&host=a.example.com,b.example.com&path=ws&allowInsecure=False').outbound;
+ assert.deepEqual(o.transport,{type:'ws',path:'/ws',headers:{Host:'a.example.com'}});assert.equal(o.tls.insecure,undefined);
+ code(()=>parse('vless://'+ID+'@example.com:443?type=ws&security=tls&allowInsecure=True'),'insecure-tls');
+ // Stored by an earlier version: still accepted when the config is built; a JSON import is refused.
+ assert.equal(outbound({type:'trojan',server:'192.0.2.7',server_port:443,password:'pw',tls:{enabled:true,insecure:true}}).tls.insecure,true);
+ code(()=>fromOutbound({type:'trojan',tag:'x',server:'192.0.2.7',server_port:443,password:'pw',tls:{enabled:true,insecure:true}}),'insecure-tls');
 });
 test('server name: strict hostnames unchanged; comma list, IDN, wildcard and odd ASCII accepted like v2rayN',()=>{
  const sni=s=>parse('vless://'+ID+'@192.0.2.1:443?security=reality&pbk='+KEY+'&sni='+encodeURIComponent(s)).outbound.tls.server_name;

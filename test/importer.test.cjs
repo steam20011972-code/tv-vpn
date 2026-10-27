@@ -83,6 +83,42 @@ test('limits: oversized text, more than three subscription URLs',async()=>{
 test('download refuses non-http schemes and characters that could escape the curl config',async()=>{
  for(const bad of ['file:///etc/passwd','https://example.com/"\nurl = "http://evil','https://example.com/a b','ftp://example.com/'])await assert.rejects(I.download(bad),{code:'subscription-failed'});
 });
+test('subscription hosts must be public IPv4: private, loopback, link-local, CGNAT, documentation, IPv6 and userinfo refused',async()=>{
+ for(const ip of ['0.1.2.3','10.0.0.1','100.64.0.1','127.0.0.1','169.254.169.254','172.16.0.1','172.31.255.255','192.168.0.1','192.0.2.5','198.18.0.1','198.51.100.1','203.0.113.9','224.0.0.1','255.255.255.255'])assert.equal(I.publicIPv4(ip),false,ip);
+ for(const ip of ['1.1.1.1','8.8.8.8','100.63.255.255','100.128.0.1','172.15.255.255','172.32.0.1','192.169.0.1'])assert.equal(I.publicIPv4(ip),true,ip);
+ const lookup=answer=>async()=>answer.map(address=>({address,family:4}));
+ assert.equal(await I.publicAddress(new URL('https://sub.example.com/'),{lookup:lookup(['8.8.8.8'])}),'8.8.8.8');
+ // A name with any private answer is refused: the core of DNS rebinding.
+ assert.equal(await I.publicAddress(new URL('https://sub.example.com/'),{lookup:lookup(['8.8.8.8','192.168.0.1'])}),null);
+ assert.equal(await I.publicAddress(new URL('https://sub.example.com/'),{lookup:async()=>{throw Error('ENOTFOUND');}}),null);
+ for(const bad of ['http://127.0.0.1:8090/x','http://192.168.0.1/','http://[::1]/','http://[::ffff:127.0.0.1]/','http://localhost/'])await assert.rejects(I.download(bad,{lookup:lookup(['127.0.0.1'])}),{code:'subscription-failed'},bad);
+ assert.equal(I.curlConfig('https://user:pw@sub.example.com/'),null);
+ assert.ok(I.curlConfig(SUB,'8.8.8.8').includes('resolve = "sub.example.com:443:8.8.8.8"'));
+});
+test('redirects are followed hop by hop, and a hop to a non-public address is refused',async()=>{
+ const http=require('http'),hits=[];
+ const internal=http.createServer((req,res)=>{hits.push(req.url);res.end('internal');});
+ const sub=http.createServer((req,res)=>{
+  if(req.url==='/start'){res.writeHead(302,{Location:'/list'});return res.end();}
+  if(req.url==='/away'){res.writeHead(302,{Location:'http://127.0.0.2:'+internal.address().port+'/admin'});return res.end();}
+  res.end(link(7,'Redirected'));
+ });
+ // 127.0.0.2 is loopback on Linux and Windows; where it cannot be bound, only the followed redirect is checked.
+ await new Promise(r=>{internal.once('error',r);internal.listen(0,'127.0.0.2',r);});await new Promise(r=>sub.listen(0,'127.0.0.1',r));
+ // 127.0.0.1 stands in for the public subscription server; any other address counts as internal.
+ const opts={allow:ip=>ip==='127.0.0.1'},base='http://127.0.0.1:'+sub.address().port;
+ try{
+  assert.match(await I.download(base+'/start',opts),/^vless:\/\//);
+  if(internal.listening){await assert.rejects(I.download(base+'/away',opts),{code:'subscription-failed'});assert.deepEqual(hits,[]);}
+ }finally{sub.close();internal.close();}
+});
+test('links without certificate checks are refused with their own reason; one stored earlier stays usable and labelled',async()=>{
+ reset();
+ const r=await I.importText('trojan://pw@192.0.2.60:443?sni=example.com&allowInsecure=1#Unchecked\n'+link(8,'Checked'));
+ assert.equal(r.added,1);assert.deepEqual(r.rejected,{'insecure-tls':1});
+ P.add({name:'Old',warnings:[],outbound:{type:'trojan',tag:'proxy',server:'192.0.2.61',server_port:443,password:'pw',tls:{enabled:true,insecure:true}}});
+ assert.deepEqual(P.list().items.map(x=>x.kind).sort(),['Trojan · TLS · '+P.INSECURE,'VLESS · Reality · Vision']);
+});
 test('USB: tv-vpn.txt in a partition root is imported; none found is an error',async()=>{
  reset();
  await assert.rejects(I.importUsb(),{code:'usb-not-found'});

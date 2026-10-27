@@ -22,17 +22,38 @@ fs.rmSync('dist',{recursive:true,force:true});fs.mkdirSync(stage+'/runtime',{rec
 fs.cpSync('app',stage,{recursive:true});
 for(const file of fs.readdirSync('runtime'))fs.copyFileSync('runtime/'+file,stage+'/runtime/'+file);
 fs.copyFileSync(path.join(core,'sing-box'),stage+'/core/sing-box');fs.copyFileSync(path.join(core,'LICENSE'),stage+'/core/LICENSE');
+// sing-box's LICENSE is only a notice; GPLv3 section 4 asks for the licence text next to the binary.
+fs.copyFileSync('licenses/GPL-3.0.txt',stage+'/core/GPL-3.0.txt');
 fs.copyFileSync('core.lock.json',stage+'/core.lock.json');fs.copyFileSync('THIRD_PARTY_NOTICES',stage+'/THIRD_PARTY_NOTICES');fs.copyFileSync('LICENSE',stage+'/LICENSE');
+// Release signature (runtime/signature.cjs). Key: TVVPN_SIGNING_KEY (CI secret), TVVPN_SIGNING_KEY_FILE or
+// ~/.tvvpn/release-signing.key. Without one the package is unsigned and setup.cjs on the TV refuses to install it.
+const SIG=require('../runtime/signature.cjs'),keyFile=process.env.TVVPN_SIGNING_KEY_FILE||path.join(require('os').homedir(),'.tvvpn','release-signing.key');
+const key=process.env.TVVPN_SIGNING_KEY||(fs.existsSync(keyFile)?fs.readFileSync(keyFile,'utf8'):null);
+if(!key&&process.argv.includes('--require-signature'))throw Error('No signing key: set TVVPN_SIGNING_KEY');
+if(key){const m=SIG.manifest(stage,version);fs.writeFileSync(stage+'/manifest.json',m);fs.writeFileSync(stage+'/manifest.sig',SIG.sign(m,key));}
 const cli=require.resolve('@webos-tools/cli/bin/ares-package.js');
-cp.execFileSync(process.execPath,[cli,stage,'-o','dist'],{stdio:'inherit'});
-const file=`${id}_${version}_all.ipk`;
+// --no-minify: files ship exactly as in Git, so vendor/qrcode.js keeps its MIT header.
+cp.execFileSync(process.execPath,[cli,stage,'-o','dist','--no-minify'],{stdio:'inherit'});
+const file=`${id}_${version}_all.ipk`,ipk=require('./ipk.cjs');
+// The installer keeps tar modes: no entry may be writable by group or others (runtime/setup.cjs runs as root).
+ipk.normalize('dist/'+file);
+const loose=Object.entries(ipk.packageModes('dist/'+file)).filter(([,m])=>m&0o022).map(([n])=>n);
+if(loose.length)throw Error('Writable by group or others in package: '+loose.join(', '));
 // Verify what was actually packaged, not the staging copy.
-const packaged=require('./ipk.cjs').files('dist/'+file);
+const packaged=ipk.files('dist/'+file);
 const inPkg=name=>{const b=packaged[`usr/palm/applications/${id}/${name}`];if(!b)throw Error('Missing from package: '+name);return b;};
 if(sha(inPkg('core/sing-box'))!==lock.binarySha256)throw Error('Packaged core does not match core.lock.json');
-for(const name of ['i18n.js','runtime/report.cjs','runtime/setup.cjs','runtime/supervisor.cjs','runtime/profile.cjs','runtime/protocols.cjs','runtime/profiles.cjs','runtime/importer.cjs','runtime/import-server.cjs','vendor/qrcode.js','fonts/manrope-cyrillic.woff2','fonts/manrope-latin.woff2','fonts/OFL.txt','runtime/watchdog.sh','runtime/70-tv-vpn','core/LICENSE','core.lock.json'])inPkg(name);
+for(const name of ['i18n.js','commands.js','runtime/report.cjs','runtime/setup.cjs','runtime/supervisor.cjs','runtime/profile.cjs','runtime/protocols.cjs','runtime/profiles.cjs','runtime/importer.cjs','runtime/import-server.cjs','vendor/qrcode.js','fonts/manrope-cyrillic.woff2','fonts/manrope-latin.woff2','fonts/OFL.txt','runtime/watchdog.sh','runtime/70-tv-vpn','core/LICENSE','core/GPL-3.0.txt','core.lock.json'])inPkg(name);
+// Shipped unchanged: the third-party notices promise it.
+for(const name of ['vendor/qrcode.js','app.js'])if(sha(inPkg(name))!==sha(fs.readFileSync('app/'+name)))throw Error('Packaged '+name+' differs from the source');
+// The signature must hold for the packaged bytes and the key built into runtime/signature.cjs.
+if(key){
+ const check='dist/stage/verify',prefix=`usr/palm/applications/${id}/`;
+ for(const [name,body] of Object.entries(packaged))if(name.startsWith(prefix)){const f=path.join(check,name.slice(prefix.length));fs.mkdirSync(path.dirname(f),{recursive:true});fs.writeFileSync(f,body);}
+ try{SIG.verify(check);}catch(e){throw Error('Package signature check failed ('+e.code+'): is the key the one in runtime/signature.cjs?');}
+}
 fs.rmSync('dist/stage',{recursive:true,force:true});
 fs.writeFileSync('dist/'+file+'.sha256',sha(fs.readFileSync('dist/'+file))+'  '+file+'\n');
 fs.writeFileSync('dist/build.json',JSON.stringify({version,node:process.version,core:lock.version,coreArch:lock.arch,coreSha256:lock.binarySha256,runtime:'Node.js 16',packages:[file]},null,2));
-console.log('Built dist/'+file+' with verified core '+lock.version);
+console.log('Built dist/'+file+' with verified core '+lock.version+(key?', signed':', UNSIGNED (the TV will refuse it)'));
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

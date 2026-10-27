@@ -6,7 +6,7 @@
 // either mapped, dropped because sing-box needs nothing for it, or refused; anything unknown is refused, never
 // dropped, so a profile never connects with settings other than the ones it asked for.
 // Errors carry a code (e.code, message prefix): invalid-link, unsupported-protocol, unsupported-settings,
-// unsupported-by-core (Xray-only features such as xhttp or kcp). Details name fields, never values.
+// unsupported-by-core (Xray-only features such as xhttp or kcp), insecure-tls (certificate checks turned off). Details name fields, never values.
 const SCHEMES=/^(vless|vmess|trojan|ss|hysteria2|hy2|tuic):\/\//i;
 const CORE_MISSING=new Set(['xhttp','splithttp','kcp','mkcp','domainsocket']);
 const FINGERPRINTS=['chrome','firefox','edge','safari','360','qq','ios','android','random','randomized'];
@@ -207,6 +207,9 @@ function extras(q,server){
  if(q.authority&&![q.sni,server].includes(q.authority))throw fail('unsupported-settings','authority');
  const insecure=['allowInsecure','insecure','allow_insecure'].some(k=>q[k]!==undefined&&bool(q[k],k));
  if(q.pcs||q.pinSHA256){if(insecure)throw fail('unsupported-settings','pinned certificate');warn(WARN.pin);}
+ // Without certificate checks anyone on the path can pose as the server, so such links are not imported.
+ // Profiles stored by earlier versions keep working: outbound() still accepts them and they stay labelled.
+ if(insecure)throw fail('insecure-tls');
  return {warnings,warn,insecure,fragment:!!q.fragment,mask:q.fm?mask(q.fm):null};
 }
 // As Xray does: WebSocket and HTTPUpgrade run over HTTP/1.1, so h2 in a link's alpn is dropped for them.
@@ -304,6 +307,8 @@ function parse(uri){
 // A sing-box JSON outbound; group and service outbounds are skipped by the caller ("skip").
 function fromOutbound(o){
  if(o&&GROUPS.includes(o.type))throw fail('skip');
- return {name:name(o&&o.tag),warnings:[],outbound:outbound(o)};
+ const out=outbound(o);if(insecure(out))throw fail('insecure-tls');return {name:name(o&&o.tag),warnings:[],outbound:out};
 }
-module.exports={SCHEMES,parse,fromOutbound,outbound};
+// An outbound that accepts any server certificate.
+function insecure(o){return !!(o&&o.tls&&o.tls.insecure);}
+module.exports={SCHEMES,parse,fromOutbound,outbound,insecure};

@@ -82,16 +82,18 @@ test('Remnawave: VLESS Reality, Trojan WS, Shadowsocks with standard base64, Hys
  code(()=>parse(`hysteria2://a@${D}:443/?`+jsQuery({obfs:'salamander','obfs-password':'other',fm})),'invalid-link');
  code(()=>parse(`hysteria2://a@${D}:443/?`+jsQuery({fm:JSON.stringify({udp:[{type:'noise',settings:{}}]})})),'unsupported-by-core');
 });
-test('Hiddify: marker, alpn, headerType=none, fragment, mux and insecure=true; fake usage entry is skipped',()=>{
- const q={hiddify:1,sni:D,type:'ws',alpn:'h2,http/1.1',muxtype:'h2mux',muxmaxc:4,mux:4,muxsmax:0,muxpad:'False',fragment:'10-100,100-200,tlshello',mc:1,path:'/hp',host:D,encryption:'none',fp:'chrome',headerType:'none',allowInsecure:'true',insecure:'true',security:'tls'};
+test('Hiddify: marker, alpn, headerType=none, fragment, mux; insecure=true refused; fake usage entry is skipped',()=>{
+ const q={hiddify:1,sni:D,type:'ws',alpn:'h2,http/1.1',muxtype:'h2mux',muxmaxc:4,mux:4,muxsmax:0,muxpad:'False',fragment:'10-100,100-200,tlshello',mc:1,path:'/hp',host:D,encryption:'none',fp:'chrome',headerType:'none',allowInsecure:'false',insecure:'false',security:'tls'};
  const p=parse(`vless://${ID}@${D}:443?`+Object.entries(q).map(([k,v])=>k+'='+quote(String(v)).replace(/,/g,'%2C')).join('&')+'#'+quote('Hiddify WS'));
- assert.deepEqual(p.outbound.tls,{enabled:true,server_name:D,insecure:true,alpn:['http/1.1'],fragment:true,utls:{enabled:true,fingerprint:'chrome'}});
+ assert.deepEqual(p.outbound.tls,{enabled:true,server_name:D,alpn:['http/1.1'],fragment:true,utls:{enabled:true,fingerprint:'chrome'}});
  assert.deepEqual(p.warnings.sort(),['Multiplexing from the link is not used.','TLS mixed-case SNI and padding from the link are not used.']);
+ code(()=>parse(`vless://${ID}@${D}:443?`+Object.entries({...q,allowInsecure:'true',insecure:'true'}).map(([k,v])=>k+'='+quote(String(v)).replace(/,/g,'%2C')).join('&')),'insecure-tls');
  const r=parse(`vless://${ID}@${S}:443?`+jsQuery({hiddify:1,sni:'example.com',type:'grpc',alpn:'h2',serviceName:'g',mode:'gun',encryption:'none',fp:'chrome',headerType:'none',security:'reality',pbk:KEY,sid:'ab'})).outbound;
  assert.deepEqual(r.transport,{type:'grpc',service_name:'g'});assert.equal(r.tls.reality.public_key,KEY);
- const hy=parse(`hysteria2://${ID}@${D}:443?hiddify=1&obfs=salamander&obfs-password=hp&sni=${D}&insecure=1&allow_insecure=1#hy`).outbound;
- assert.deepEqual(hy.tls,{enabled:true,server_name:D,insecure:true});
- assert.equal(parse(`tuic://${ID}:${ID}@${D}:443?congestion_control=cubic&udp_relay_mode=native&sni=${D}&alpn=h3&allow_insecure=1#t`).outbound.tls.insecure,true);
+ const hy=parse(`hysteria2://${ID}@${D}:443?hiddify=1&obfs=salamander&obfs-password=hp&sni=${D}&insecure=0&allow_insecure=0#hy`).outbound;
+ assert.deepEqual(hy.tls,{enabled:true,server_name:D});
+ code(()=>parse(`hysteria2://${ID}@${D}:443?hiddify=1&sni=${D}&insecure=1&allow_insecure=1#hy`),'insecure-tls');
+ code(()=>parse(`tuic://${ID}:${ID}@${D}:443?congestion_control=cubic&udp_relay_mode=native&sni=${D}&alpn=h3&allow_insecure=1#t`),'insecure-tls');
  const vm={v:'2',ps:'HV',add:D,port:443,id:ID,aid:0,scy:'auto',net:'ws',type:'none',host:D,alpn:'h2,http/1.1',path:'/v',tls:'tls',sni:D,fp:'chrome',fragment:'10-100,100-200,tlshello',muxtype:'h2mux',mux:4};
  const v=parse('vmess://'+b64(JSON.stringify(vm)));assert.deepEqual(v.outbound.tls.alpn,['http/1.1']);assert.equal(v.outbound.tls.fragment,true);
  code(()=>parse('ss://'+b64('chacha20-ietf-poly1305:pw')+`@${S}:443?plugin=obfs-local&obfs-host=${D}&obfs=http&udp-over-tcp=true#ss`),'unsupported-settings');
