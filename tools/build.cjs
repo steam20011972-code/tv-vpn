@@ -81,9 +81,13 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
     ])
   );
   const core = await fetchCore(),
-    { id, version, appDescription } = require('../app/appinfo.json');
-  // Stage the package: UI, TV runtime (setup.cjs installs it into /media/developer/tv-vpn) and the pinned core.
-  const stage = 'dist/stage/app';
+    { id, version, appDescription } = require('../app/appinfo.json'),
+    serviceId = id + '.service';
+  // Stage the package: UI, TV runtime (setup.cjs installs it into /media/developer/tv-vpn) and the pinned core, and
+  // the Luna service beside it as on the TV (usr/palm/applications/<id>, usr/palm/services/<id>.service), where the
+  // signed manifest (runtime/signature.cjs) looks for it.
+  const stage = 'dist/stage/applications/' + id,
+    serviceStage = 'dist/stage/services/' + serviceId;
   fs.rmSync('dist', { recursive: true, force: true });
   fs.mkdirSync(stage + '/runtime', { recursive: true });
   fs.mkdirSync(stage + '/core');
@@ -96,6 +100,17 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
   fs.copyFileSync('core.lock.json', stage + '/core.lock.json');
   fs.copyFileSync('THIRD_PARTY_NOTICES', stage + '/THIRD_PARTY_NOTICES');
   fs.copyFileSync('LICENSE', stage + '/LICENSE');
+  // The service carries its own copy of runtime/secure-app.cjs: it checks the app directory before running anything
+  // from it, so it cannot load that check from there.
+  const services = require('../service/services.json'),
+    servicePackage = require('../service/package.json'),
+    serviceAppId = (/APP_ID = '([^']*)'/.exec(fs.readFileSync('service/service.js', 'utf8')) || [])[1];
+  if (services.id !== serviceId || servicePackage.name !== serviceId || serviceAppId !== id)
+    throw Error('service/ must name ' + serviceId + ' and answer ' + id);
+  if (servicePackage.version !== version) throw Error('service/package.json version differs from app/appinfo.json');
+  fs.mkdirSync(serviceStage, { recursive: true });
+  fs.cpSync('service', serviceStage, { recursive: true });
+  fs.copyFileSync('runtime/secure-app.cjs', serviceStage + '/secure-app.cjs');
   // Release signature (runtime/signature.cjs). Key: TVVPN_SIGNING_KEY (CI secret), TVVPN_SIGNING_KEY_FILE or
   // ~/.tvvpn/release-signing.key. Without one the package is unsigned and setup.cjs on the TV refuses to install it.
   const SIG = require('../runtime/signature.cjs'),
@@ -109,7 +124,7 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
   }
   const cli = require.resolve('@webos-tools/cli/bin/ares-package.js');
   // --no-minify: files ship exactly as in Git, so vendor/qrcode.js keeps its MIT header.
-  cp.execFileSync(process.execPath, [cli, stage, '-o', 'dist', '--no-minify'], { stdio: 'inherit' });
+  cp.execFileSync(process.execPath, [cli, stage, serviceStage, '-o', 'dist', '--no-minify'], { stdio: 'inherit' });
   // ares-package names the file _all and writes "Architecture: all": it reads the ELF header of main only, and main
   // here is index.html. The package carries an ARMv7 sing-box, so control and the file name say arm.
   const file = `${id}_${version}_arm.ipk`,
@@ -146,6 +161,7 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
     'commands.js',
     'runtime/report.cjs',
     'runtime/setup.cjs',
+    'runtime/secure-app.cjs',
     'runtime/supervisor.cjs',
     'runtime/profile.cjs',
     'runtime/protocols.cjs',
@@ -167,18 +183,29 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
   for (const name of ['vendor/qrcode.js', 'app.js'])
     if (sha(inPkg(name)) !== sha(fs.readFileSync('app/' + name)))
       throw Error('Packaged ' + name + ' differs from the source');
-  // The signature must hold for the packaged bytes and the key built into runtime/signature.cjs.
+  // The service runs as root: it ships exactly as in Git.
+  for (const [name, source] of [
+    ['service.js', 'service/service.js'],
+    ['services.json', 'service/services.json'],
+    ['package.json', 'service/package.json'],
+    ['secure-app.cjs', 'runtime/secure-app.cjs'],
+  ]) {
+    const b = packaged[`usr/palm/services/${serviceId}/${name}`];
+    if (!b) throw Error('Missing from package: service ' + name);
+    if (sha(b) !== sha(fs.readFileSync(source))) throw Error('Packaged service ' + name + ' differs from ' + source);
+  }
+  // The signature must hold for the packaged bytes and the key built into runtime/signature.cjs. The app and its
+  // service are unpacked side by side, as installed.
   if (key) {
-    const check = 'dist/stage/verify',
-      prefix = `usr/palm/applications/${id}/`;
+    const check = 'dist/stage/verify';
     for (const [name, body] of Object.entries(packaged))
-      if (name.startsWith(prefix)) {
-        const f = path.join(check, name.slice(prefix.length));
+      if (name.startsWith('usr/palm/')) {
+        const f = path.join(check, name.slice('usr/palm/'.length));
         fs.mkdirSync(path.dirname(f), { recursive: true });
         fs.writeFileSync(f, body);
       }
     try {
-      SIG.verify(check);
+      SIG.verify(path.join(check, 'applications', id));
     } catch (e) {
       throw Error('Package signature check failed (' + e.code + '): is the key the one in runtime/signature.cjs?');
     }

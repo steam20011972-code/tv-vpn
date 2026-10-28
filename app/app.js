@@ -21,9 +21,13 @@
     setupErrors = M.setupErrors,
     reasons = M.reasons;
   var checkLabels = ['root', 'arch', 'node', 'tun', 'ip', 'connmanctl'];
-  // Directory of the installed app; setup.cjs ships inside it. commands.js lets only plain path characters through.
-  var appDir = decodeURIComponent(location.pathname).replace(/\/[^\/]*$/, '');
-  function exec(command, timeout) {
+  function failure(message, code) {
+    var e = Error(message);
+    e.code = code;
+    return e;
+  }
+  // One Luna call and its first answer, parsed.
+  function bus(uri, params, timeout) {
     return new Promise(function (resolve, reject) {
       var bridge = new PalmServiceBridge(),
         ended = false;
@@ -40,29 +44,45 @@
       }
       bridge.onservicecallback = function (raw) {
         try {
-          var response = JSON.parse(raw),
-            data;
-          try {
-            data = JSON.parse(response.stdoutString || '');
-          } catch (e) {
-            data = null;
-          }
-          if (!data) {
-            var e = Error(t('service.homebrew'));
-            e.code = 'no-service';
-            throw e;
-          }
-          if (!data.ok) {
-            var f = Error(setupErrors[data.error] || data.error || t('service.controller'));
-            f.code = data.error;
-            throw f;
-          }
-          done(null, data);
+          done(null, JSON.parse(raw));
         } catch (e) {
-          done(e);
+          done(failure(t('service.missing'), 'no-service'));
         }
       };
-      bridge.call('luna://org.webosbrew.hbchannel.service/exec', JSON.stringify({ command: command }));
+      bridge.call(uri, JSON.stringify(params || {}));
+    });
+  }
+  // The app's own Luna service (service/service.js) answers {ok, …} or {ok: false, error}. An answer without ok
+  // comes from the bus itself: the service is missing or did not start.
+  function request(method, params, timeout) {
+    return bus('luna://' + window.TVCommands.SERVICE + '/' + method, params, timeout).then(function (r) {
+      if (typeof r.ok !== 'boolean') throw failure(t('service.missing'), 'no-service');
+      if (!r.ok) throw failure(setupErrors[r.error] || r.error || t('service.controller'), r.error);
+      return r;
+    });
+  }
+  // The service runs as root only after Homebrew Channel's elevate-service, which a reboot keeps and every install or
+  // update of the app undoes. The first not-elevated answer runs it (the one command the app gives Homebrew Channel
+  // exec, see commands.js) and the call is made once more; another not-elevated is an error, not a new elevation.
+  // After a failed elevation only "Check again" tries again.
+  var elevation = null;
+  function elevate() {
+    if (!elevation)
+      elevation = bus(
+        'luna://org.webosbrew.hbchannel.service/exec',
+        { command: window.TVCommands.ELEVATE },
+        60000
+      ).then(function (r) {
+        if (r.returnValue !== true) throw failure(t('setup.noHomebrew'), 'no-homebrew');
+      });
+    return elevation;
+  }
+  function luna(method, params, timeout) {
+    return request(method, params, timeout).catch(function (e) {
+      if (e.code !== 'not-elevated') throw e;
+      return elevate().then(function () {
+        return request(method, params, timeout);
+      });
     });
   }
   var demoProfiles = {
@@ -76,15 +96,16 @@
     demoImport = { state: 'idle' },
     demoState = { state: 'disconnected', autostart: false };
   // The preview keeps its own VPN state: render() replaces current with the screen's view of it ("connecting").
-  function demoCall(action, arg) {
+  function demoCall(method, params) {
     var p = demoProfiles,
+      id = params && params.id,
       item = function () {
         return p.items.filter(function (x) {
           return x.id === p.active;
         })[0];
       };
     // Preview: a phone "sends" two profiles eight seconds after the QR code appears.
-    if (action === 'import-begin' && demoImport.state !== 'listening') {
+    if (method === 'importBegin' && demoImport.state !== 'listening') {
       demoImport = {
         state: 'listening',
         url: 'http://192.168.1.20:41234/0123456789abcdef0123456789abcdef',
@@ -104,21 +125,21 @@
         );
       }, 8000);
     }
-    if (action === 'import-end') demoImport = { state: 'idle' };
-    if (action === 'import-usb') return Promise.reject(Error(setupErrors['usb-not-found']));
-    if (action === 'refresh-subscription') p.subscriptions[0].updatedAt = Date.now();
-    if (action === 'start')
+    if (method === 'importEnd') demoImport = { state: 'idle' };
+    if (method === 'importUsb') return Promise.reject(Error(setupErrors['usb-not-found']));
+    if (method === 'refreshSubscription') p.subscriptions[0].updatedAt = Date.now();
+    if (method === 'start')
       demoState = { state: 'connected', healthy: true, autostart: demoState.autostart, latency: 48 };
-    if (action === 'stop' || action === 'restore-network') demoState.state = 'disconnected';
-    if (action === 'set-autostart') demoState.autostart = arg === 'on';
-    if (action === 'select') p.active = arg;
-    if (action === 'delete') {
-      if (arg === p.active && demoState.state === 'connected')
+    if (method === 'stop' || method === 'restoreNetwork') demoState.state = 'disconnected';
+    if (method === 'setAutostart') demoState.autostart = params.enabled;
+    if (method === 'select') p.active = id;
+    if (method === 'delete') {
+      if (id === p.active && demoState.state === 'connected')
         return Promise.reject(Error(setupErrors['profile-in-use']));
       p.items = p.items.filter(function (x) {
-        return x.id !== arg;
+        return x.id !== id;
       });
-      if (arg === p.active) p.active = p.items.length ? p.items[0].id : null;
+      if (id === p.active) p.active = p.items.length ? p.items[0].id : null;
     }
     var a = item();
     return Promise.resolve(
@@ -131,15 +152,14 @@
       })
     );
   }
-  function call(action, arg) {
-    if (demo) return demoCall(action, arg);
-    // Allowed actions and argument checks live in commands.js.
-    var command = window.TVCommands.ctl(action, arg);
-    if (!command) return Promise.reject(Error(setupErrors['invalid-action']));
-    // USB files and subscriptions may download up to three subscriptions (15 s each).
-    return exec(command, action === 'import-usb' || action === 'refresh-subscription' ? 65000 : 12000);
+  // VPN methods of the service; it checks the arguments. Its limits are 30 s, and 75 s for USB files and
+  // subscriptions (up to three downloads of 15 s each); waiting a little longer leaves the error to the service.
+  function call(method, params) {
+    if (demo) return demoCall(method, params);
+    return luna(method, params, method === 'importUsb' || method === 'refreshSubscription' ? 80000 : 35000);
   }
-  function setup(action, arg) {
+  // setup.cjs through the service: status, install, uninstall (deleteProfile: true removes the profiles too).
+  function setup(action, deleteProfile) {
     // Preview: index.html#setup shows the install screen in a desktop browser; #setup-fail makes the installation fail.
     if (demo) {
       if (action === 'install')
@@ -165,10 +185,11 @@
           : { ok: true, ready: true, current: true, profile: true, appVersion: '0.2.0', checks: {} }
       ).then(showVersion);
     }
-    // commands.js prefers the root-only installed setup.cjs; see the comment there.
-    var command = window.TVCommands.setup(appDir, action, arg);
-    if (!command) return Promise.reject(Error(setupErrors['invalid-action']));
-    return exec(command, action === 'status' ? 15000 : 120000).then(showVersion);
+    // The service limits status to 30 s; install and uninstall have no limit there and run to the end even after
+    // the app stops waiting.
+    if (action === 'status') return luna('setupStatus', {}, 35000).then(showVersion);
+    if (action === 'install') return luna('setupInstall', {}, 300000).then(showVersion);
+    return luna('setupUninstall', { deleteProfile: !!deleteProfile }, 300000).then(showVersion);
   }
   // Every setup.cjs answer carries the version from the installed app's appinfo.json; the footer and diagnostics show it.
   function showVersion(s) {
@@ -308,13 +329,17 @@
         }
       })
       .catch(function (e) {
-        showSetup(null, e.code === 'no-service' ? t('setup.noHomebrew') : e.message);
+        showSetup(null, e.message);
       });
   }
   $('setup-install').onclick = function () {
     if (installing) return;
     if (this.dataset.action === 'install') install();
-    else check();
+    else {
+      // Pressed by the user: a failed elevation may be tried again.
+      elevation = null;
+      check();
+    }
   };
   $('power').onclick = function () {
     if (requesting) return;
@@ -334,14 +359,14 @@
       });
   };
   $('autostart').onclick = function () {
-    call('set-autostart', current.autostart ? 'off' : 'on')
+    call('setAutostart', { enabled: !current.autostart })
       .then(render)
       .catch(function (e) {
         toast(e.message);
       });
   };
   $('restore').onclick = function () {
-    call('restore-network')
+    call('restoreNetwork')
       .then(function (s) {
         render(s);
         toast(t('restore.done'));
@@ -420,19 +445,19 @@
         label: t('uninstall.keep'),
         kind: 'danger',
         fn: function () {
-          uninstall('keep-profile');
+          uninstall(false);
         },
       },
       {
         label: t('uninstall.all'),
         kind: 'danger',
         fn: function () {
-          uninstall('delete-profile');
+          uninstall(true);
         },
       },
     ]);
   }
-  function uninstall(arg) {
+  function uninstall(deleteProfile) {
     phase = 'checking';
     var p = document.createElement('p');
     p.className = 'dialog-text';
@@ -440,7 +465,7 @@
     $('dialog-content').textContent = '';
     $('dialog-content').appendChild(p);
     $('dialog-actions').textContent = '';
-    setup('uninstall', arg)
+    setup('uninstall', deleteProfile)
       .then(function (s) {
         autoInstall = false;
         $('dialog').hidden = true;
@@ -578,7 +603,7 @@
   // Opening a new code from this screen must not send import-end, which could overtake the new import-begin.
   function openImport() {
     dialogCleanup = null;
-    call('import-begin')
+    call('importBegin')
       .then(function (r) {
         render(r);
         importDialog(r.import || {});
@@ -657,7 +682,7 @@
     show(im);
     if (!finished)
       timer = setInterval(function () {
-        call('import-status')
+        call('importStatus')
           .then(function (s) {
             show(s.import || {});
           })
@@ -666,12 +691,12 @@
     dialogCleanup = function () {
       finished = true;
       clearInterval(timer);
-      call('import-end').catch(function () {});
+      call('importEnd').catch(function () {});
     };
   }
   function usbImport() {
     toast(t('usb.searching'));
-    call('import-usb')
+    call('importUsb')
       .then(function (r) {
         render(r);
         toast(summary(r.result) + (r.result.added || r.result.updated ? t('usb.deleteFile') : ''));
@@ -682,7 +707,7 @@
   }
   function refreshSubscription(n, id) {
     toast(t('sub.refreshing', { n: n }));
-    call('refresh-subscription', id)
+    call('refreshSubscription', { id: id })
       .then(function (r) {
         render(r);
         toast(t('sub.result', { n: n, summary: summary(r.result).toLowerCase() }));
@@ -703,7 +728,7 @@
       });
   }
   function selectProfile(it) {
-    call('select', it.id)
+    call('select', { id: it.id })
       .then(function (s) {
         closeDialog();
         render(s);
@@ -724,7 +749,7 @@
         label: t('profiles.delete'),
         kind: 'danger',
         fn: function () {
-          call('delete', it.id)
+          call('delete', { id: it.id })
             .then(function (s) {
               render(s);
               toast(t('delete.done', { name: it.name }));

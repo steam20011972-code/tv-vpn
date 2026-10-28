@@ -64,9 +64,9 @@ Homebrew Channel shows when a new version is available: open it â†’ MEDZH VPN â†
 
 Without the catalog, or to install a specific version:
 
-1. **Download** `io.github.steam20011972-code.tvvpn_<version>_arm.ipk` and its `.sha256` from [Releases](https://github.com/steam20011972-code/tv-vpn/releases) and check it: `sha256sum -c io.github.steam20011972-code.tvvpn_<version>_arm.ipk.sha256`.
+1. **Download** `io.github.steam20011972code.tvvpn_<version>_arm.ipk` and its `.sha256` from [Releases](https://github.com/steam20011972-code/tv-vpn/releases) and check it: `sha256sum -c io.github.steam20011972code.tvvpn_<version>_arm.ipk.sha256`.
 2. **Install the IPK** with [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop), with `ares-install --device <tv> <file>.ipk`, or over SSH: copy it to `/tmp/tv-vpn.ipk` and run
-   `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972-code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
+   `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
 3. **Open MEDZH VPN**: components install automatically, as above. Update the same way with a newer IPK.
 
 ### What the install screen checks
@@ -159,7 +159,7 @@ It disables autostart, stops its own processes, restores DNS and routes, and rem
 Open an [issue](https://github.com/steam20011972-code/tv-vpn/issues/new/choose) and attach the anonymized report. Over SSH on the TV:
 
 ```sh
-/usr/bin/node /media/developer/apps/usr/palm/applications/io.github.steam20011972-code.tvvpn/runtime/report.cjs
+/usr/bin/node /media/developer/apps/usr/palm/applications/io.github.steam20011972code.tvvpn/runtime/report.cjs
 ```
 
 It only reads files and prints JSON: TV model, webOS version, the install checks, app and core versions, VPN state, protocol labels and recent event codes. Profile names, servers, links, subscription URLs, addresses, serial numbers and MACs are left out. Still look it over before posting.

@@ -1,16 +1,17 @@
 'use strict';
-// In-app installer, run as root through Homebrew Channel exec.
+// In-app installer, run as root by the Luna service (service/service.js) or over SSH.
 // setup.cjs status | install | uninstall [delete-profile] [--app <installed app directory>]. Prints one JSON line;
 // never prints secrets.
-// setup:app-option — app/commands.js runs the root-only copy installed in BASE/runtime and names the package with
-// --app; the package's own copy (APP = its parent directory) runs only to bootstrap. Keep this marker.
+// setup:app-option — the service runs the root-only copy installed in BASE/runtime and names the
+// package with --app; the package's own copy (APP = its parent directory) runs only to bootstrap. Keep this marker.
 const fs = require('fs'),
   path = require('path'),
   cp = require('child_process'),
   crypto = require('crypto'),
   net = require('net');
 // Loaded now, from the copy that runs: after park() moves BASE/runtime, its key is still the installed one.
-const SIG = require('./signature.cjs');
+const SIG = require('./signature.cjs'),
+  { secureApp } = require('./secure-app.cjs');
 let APP = path.dirname(__dirname);
 const BASE = process.env.TVVPN_HOME || '/media/developer/tv-vpn';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -37,18 +38,6 @@ function fail(code) {
   const e = Error(code);
   e.code = code;
   return e;
-}
-// The app directory is root-owned, but earlier packages (0.6.0 and older) put 0666/0777 modes in it, which the
-// installer keeps. Before anything is copied from it: no symlinks, owner root, nothing writable by group or others
-// (tightened here when the owner is right). A foreign owner or a link means the package cannot be trusted.
-function secureApp(app = APP, owner = 0) {
-  (function walk(p) {
-    // A hard link would let a file from elsewhere pose as part of the package.
-    const s = fs.lstatSync(p);
-    if (s.isSymbolicLink() || s.uid !== owner || (!s.isDirectory() && s.nlink !== 1)) throw fail('package-unsafe');
-    if (s.mode & 0o022) fs.chmodSync(p, s.isDirectory() ? 0o755 : 0o644);
-    if (s.isDirectory()) for (const e of fs.readdirSync(p)) walk(path.join(p, e));
-  })(app);
 }
 function onPath(name) {
   return (process.env.PATH || '/usr/sbin:/usr/bin:/sbin:/bin')
@@ -328,7 +317,6 @@ function appOption(argv) {
 }
 module.exports = {
   checks,
-  secureApp,
   status,
   park,
   unpark,
@@ -342,7 +330,7 @@ module.exports = {
 if (require.main === module)
   (async () => {
     const [action, arg] = appOption(process.argv.slice(2));
-    if (checks().root) secureApp();
+    if (checks().root) secureApp(APP);
     if (action === 'status') return status();
     if (action === 'install' && !arg) return install();
     if (action === 'uninstall' && (!arg || arg === 'delete-profile' || arg === 'keep-profile'))

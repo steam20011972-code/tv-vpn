@@ -169,7 +169,28 @@ test(
   () => {
     const c = ipk.control(built);
     assert.match(c, /^Architecture: arm$/m);
+    assert.match(c, new RegExp('^Package: ' + app.id.replace(/\./g, '\\.') + '$', 'm'));
     assert.ok(c.split('\n').includes('Description: ' + app.appDescription));
     assert.doesNotMatch(c, /nobody@example\.com/);
+  }
+);
+test(
+  'built IPK holds the app and its Luna service, and only the removal of the old package names the old id',
+  { skip: !fs.existsSync(built) },
+  () => {
+    const files = ipk.files(built),
+      old = 'io.github.steam20011972-code.tvvpn',
+      service = `usr/palm/services/${app.id}.service/service.js`;
+    for (const name of ['service.js', 'services.json', 'package.json', 'secure-app.cjs'])
+      assert.ok(files[`usr/palm/services/${app.id}.service/${name}`], name);
+    assert.ok(files[`usr/palm/applications/${app.id}/appinfo.json`]);
+    assert.ok(Object.keys(ipk.packageModes(built)).every((n) => !n.includes(old)));
+    // The service removes the package with the old id (LEGACY_ID); nothing else may name it.
+    const named = String(files[service])
+      .split('\n')
+      .filter((l) => l.includes(old));
+    assert.deepEqual(named, [`const LEGACY_ID = '${old}';`]);
+    for (const [name, body] of Object.entries(files)) if (name !== service) assert.equal(body.indexOf(old), -1, name);
+    assert.ok(!ipk.control(built).includes(old));
   }
 );

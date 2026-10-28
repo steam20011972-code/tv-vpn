@@ -12,7 +12,8 @@ process.env.TVVPN_HOOK_DIR = path.join(tmp, 'init.d');
 process.env.TVVPN_ALLOW_UNSIGNED = '1';
 fs.mkdirSync(process.env.TVVPN_HOME);
 const C = require('../runtime/common.cjs'),
-  setup = require('../runtime/setup.cjs');
+  setup = require('../runtime/setup.cjs'),
+  { secureApp } = require('../runtime/secure-app.cjs');
 const BASE = process.env.TVVPN_HOME;
 // Fake app directory laid out like the IPK built by tools/build.cjs.
 function fakeApp(name, version = '9.9.9', core = Buffer.from('fake core ' + name)) {
@@ -118,13 +119,13 @@ test(
     fs.chmodSync(loose, 0o777);
     fs.chmodSync(loose + '/runtime', 0o777);
     fs.chmodSync(loose + '/runtime/setup.cjs', 0o666);
-    setup.secureApp(loose, process.getuid());
+    secureApp(loose, process.getuid());
     assert.equal(fs.statSync(loose).mode & 0o777, 0o755);
     assert.equal(fs.statSync(loose + '/runtime').mode & 0o777, 0o755);
     assert.equal(fs.statSync(loose + '/runtime/setup.cjs').mode & 0o777, 0o644);
-    assert.throws(() => setup.secureApp(loose, process.getuid() + 1), { code: 'package-unsafe' });
+    assert.throws(() => secureApp(loose, process.getuid() + 1), { code: 'package-unsafe' });
     fs.symlinkSync('/etc/hostname', loose + '/runtime/link.cjs');
-    assert.throws(() => setup.secureApp(loose, process.getuid()), { code: 'package-unsafe' });
+    assert.throws(() => secureApp(loose, process.getuid()), { code: 'package-unsafe' });
   }
 );
 test(
@@ -202,9 +203,47 @@ test('signed packages: a valid signature installs; unsigned, foreign-key and alt
     process.env.TVVPN_ALLOW_UNSIGNED = '1';
   }
 });
+test('the signature covers the Luna service beside the app; files stays what 0.6.x installers count', () => {
+  const SIG = require('../runtime/signature.cjs');
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519');
+  // Laid out as installed: usr/palm/applications/<id> and usr/palm/services/<id>.service.
+  const signed = (name) => {
+    const root = path.join(tmp, name),
+      a = path.join(root, 'applications', 'io.example.tvvpn'),
+      s = path.join(root, 'services', 'io.example.tvvpn.service');
+    fs.mkdirSync(path.dirname(a), { recursive: true });
+    fs.renameSync(fakeApp(name + '-app', '9.9.30'), a);
+    fs.writeFileSync(a + '/appinfo.json', JSON.stringify({ id: 'io.example.tvvpn', version: '9.9.30' }));
+    fs.mkdirSync(s, { recursive: true });
+    fs.writeFileSync(s + '/service.js', 'service');
+    fs.writeFileSync(s + '/services.json', '{}');
+    const m = SIG.manifest(a, '9.9.30');
+    fs.writeFileSync(a + '/manifest.json', m);
+    fs.writeFileSync(a + '/manifest.sig', SIG.sign(m, privateKey));
+    return { a, s, m: JSON.parse(m) };
+  };
+  delete process.env.TVVPN_ALLOW_UNSIGNED;
+  try {
+    const good = signed('svc-good');
+    assert.deepEqual(Object.keys(good.m.files), SIG.covered(good.a));
+    assert.deepEqual(Object.keys(good.m.service), ['service.js', 'services.json']);
+    assert.deepEqual(Object.keys(SIG.verify(good.a, publicKey)), SIG.covered(good.a));
+    const altered = signed('svc-altered');
+    fs.appendFileSync(altered.s + '/service.js', '\n// changed after signing\n');
+    assert.throws(() => setup.deploy(C, altered.a, { publicKey }), { code: 'package-mismatch' });
+    const extra = signed('svc-extra');
+    fs.writeFileSync(extra.s + '/node_modules.js', '');
+    assert.throws(() => SIG.verify(extra.a, publicKey), { code: 'package-mismatch' });
+    const missing = signed('svc-missing');
+    fs.rmSync(missing.s, { recursive: true });
+    assert.throws(() => SIG.verify(missing.a, publicKey), { code: 'package-mismatch' });
+  } finally {
+    process.env.TVVPN_ALLOW_UNSIGNED = '1';
+  }
+});
 test('secureApp refuses a hard-linked file', { skip: process.platform === 'win32' }, () => {
   const linked = fakeApp('linked');
   fs.linkSync(linked + '/runtime/setup.cjs', linked + '/runtime/twin.cjs');
-  assert.throws(() => setup.secureApp(linked, process.getuid()), { code: 'package-unsafe' });
+  assert.throws(() => secureApp(linked, process.getuid()), { code: 'package-unsafe' });
 });
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));

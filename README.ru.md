@@ -64,9 +64,9 @@ VPN-клиент для LG webOS на основе [sing-box](https://github.com
 
 Без каталога или для установки конкретной версии:
 
-1. **Скачайте** `io.github.steam20011972-code.tvvpn_<версия>_arm.ipk` и файл `.sha256` из [Releases](https://github.com/steam20011972-code/tv-vpn/releases) и проверьте: `sha256sum -c io.github.steam20011972-code.tvvpn_<версия>_arm.ipk.sha256`.
+1. **Скачайте** `io.github.steam20011972code.tvvpn_<версия>_arm.ipk` и файл `.sha256` из [Releases](https://github.com/steam20011972-code/tv-vpn/releases) и проверьте: `sha256sum -c io.github.steam20011972code.tvvpn_<версия>_arm.ipk.sha256`.
 2. **Установите IPK** через [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop), командой `ares-install --device <tv> <файл>.ipk` или по SSH: скопируйте его в `/tmp/tv-vpn.ipk` и выполните
-   `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972-code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
+   `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
 3. **Откройте MEDZH VPN**: компоненты установятся сами, как описано выше. Обновление — так же, более новым IPK.
 
 ### Что проверяет экран установки
@@ -159,7 +159,7 @@ export TV_SSH_PASSWORD=<пароль root>   # только в окружени�
 Откройте [issue](https://github.com/steam20011972-code/tv-vpn/issues/new/choose) и приложите обезличенный отчёт. По SSH на телевизоре:
 
 ```sh
-/usr/bin/node /media/developer/apps/usr/palm/applications/io.github.steam20011972-code.tvvpn/runtime/report.cjs
+/usr/bin/node /media/developer/apps/usr/palm/applications/io.github.steam20011972code.tvvpn/runtime/report.cjs
 ```
 
 Команда только читает файлы и выводит JSON: модель ТВ, версию webOS, результаты проверок, версии приложения и ядра, состояние VPN, названия протоколов и последние коды событий. Имена профилей, серверы, ссылки, адреса подписок, IP-адреса, серийные номера и MAC в него не попадают. Всё равно просмотрите его перед публикацией.

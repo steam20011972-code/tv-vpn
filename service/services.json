@@ -1,0 +1,29 @@
+{
+  "id": "io.github.steam20011972code.tvvpn.service",
+  "description": "MEDZH VPN root service: runs the installed VPN controller and component installer for the MEDZH VPN app",
+  "services": [
+    {
+      "name": "io.github.steam20011972code.tvvpn.service",
+      "description": "Answers only the MEDZH VPN app and only once elevated by Homebrew Channel",
+      "commands": [
+        { "name": "status", "description": "VPN state" },
+        { "name": "start", "description": "Connect" },
+        { "name": "stop", "description": "Disconnect" },
+        { "name": "restoreNetwork", "description": "Stop VPN and restore the TV's own routes and DNS" },
+        { "name": "setAutostart", "description": "Connect at boot: {enabled: boolean}" },
+        { "name": "profiles", "description": "Saved profiles and subscriptions" },
+        { "name": "select", "description": "Make a profile active: {id}" },
+        { "name": "delete", "description": "Delete a profile: {id}" },
+        { "name": "importBegin", "description": "Open the one-time LAN page for importing profiles" },
+        { "name": "importStatus", "description": "State of the import page" },
+        { "name": "importEnd", "description": "Close the import page" },
+        { "name": "importUsb", "description": "Import tv-vpn.txt from a USB drive" },
+        { "name": "refreshSubscription", "description": "Download a subscription again: {id}" },
+        { "name": "diagnostics", "description": "Anonymized diagnostics" },
+        { "name": "setupStatus", "description": "Device checks and installed component version" },
+        { "name": "setupInstall", "description": "Install or update components from this package" },
+        { "name": "setupUninstall", "description": "Remove components: {deleteProfile: boolean}" }
+      ]
+    }
+  ]
+}

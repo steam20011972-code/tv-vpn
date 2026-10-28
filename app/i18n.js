@@ -34,7 +34,7 @@
       'footer.move': 'Переместить фокус',
       'footer.note': 'Закрытие приложения не отключает VPN',
       'service.timeout': 'Нет ответа от сервиса MEDZH VPN',
-      'service.homebrew': 'Homebrew-сервис недоступен',
+      'service.missing': 'Сервис MEDZH VPN не запустился. Переустановите приложение',
       'service.controller': 'Нет ответа контроллера',
       'service.down': 'Сервис недоступен',
       'service.downText': 'Проверьте Homebrew Channel и установку MEDZH VPN',
@@ -155,6 +155,12 @@
         'hook-conflict': 'Найден чужой файл автозапуска 70-tv-vpn',
         'uninstall-failed': 'Не удалось удалить компоненты',
         'install-failed': 'Не удалось установить компоненты',
+        'controller-error': 'Ошибка управления подключением',
+        'not-elevated':
+          'Сервис MEDZH VPN не получил права root. Откройте Homebrew Channel, проверьте «Root OK» и нажмите «Проверить снова»',
+        forbidden: 'Сервис MEDZH VPN отказал в доступе',
+        'legacy-remove-failed':
+          'Не удалось удалить старую версию MEDZH VPN. Удалите её из списка приложений и нажмите «Проверить снова»',
         'invalid-action': 'Команда недоступна',
         'profile-in-use': 'Это текущий профиль. Сначала выберите другой или отключите VPN',
         'unknown-profile': 'Профиль не найден',
@@ -221,7 +227,7 @@
       'footer.move': 'Move focus',
       'footer.note': 'Closing the app does not turn off VPN',
       'service.timeout': 'No response from the MEDZH VPN service',
-      'service.homebrew': 'Homebrew service unavailable',
+      'service.missing': 'The MEDZH VPN service did not start. Reinstall the app',
       'service.controller': 'No response from the controller',
       'service.down': 'Service unavailable',
       'service.downText': 'Check Homebrew Channel and the MEDZH VPN installation',
@@ -341,6 +347,12 @@
         'hook-conflict': 'Found a foreign autostart file 70-tv-vpn',
         'uninstall-failed': 'Could not remove the components',
         'install-failed': 'Could not install the components',
+        'controller-error': 'Connection controller error',
+        'not-elevated':
+          'The MEDZH VPN service did not get root rights. Open Homebrew Channel, check "Root OK" and press "Check again"',
+        forbidden: 'The MEDZH VPN service refused access',
+        'legacy-remove-failed':
+          'Could not remove the old version of MEDZH VPN. Remove it from the app list and press "Check again"',
         'invalid-action': 'Command not available',
         'profile-in-use': 'This is the current profile. Select another one or turn off VPN first',
         'unknown-profile': 'Profile not found',
