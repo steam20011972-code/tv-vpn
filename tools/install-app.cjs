@@ -3,7 +3,7 @@ const { run, upload, quote } = require('./tv.cjs'),
   fs = require('fs');
 const { id, version } = require('../app/appinfo.json');
 (async () => {
-  const file = `dist/${id}_${version}_all.ipk`,
+  const file = `dist/${id}_${version}_arm.ipk`,
     remote = '/media/developer/tv-vpn/tv-vpn.ipk';
   await upload(file, remote, '600');
   const payload = JSON.stringify({ id, ipkUrl: remote, subscribe: true });

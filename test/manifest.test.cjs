@@ -6,7 +6,7 @@ const fs = require('fs'),
   crypto = require('crypto');
 const { manifest } = require('../tools/manifest.cjs'),
   app = require('../app/appinfo.json');
-const file = `${app.id}_${app.version}_all.ipk`;
+const file = `${app.id}_${app.version}_arm.ipk`;
 function dist(body, sum) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tvvpn-manifest-'));
   fs.writeFileSync(path.join(dir, file), body);

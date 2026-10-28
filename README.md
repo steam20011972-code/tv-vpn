@@ -64,7 +64,7 @@ Homebrew Channel shows when a new version is available: open it â†’ MEDZH VPN â†
 
 Without the catalog, or to install a specific version:
 
-1. **Download** `io.github.steam20011972-code.tvvpn_<version>_all.ipk` and its `.sha256` from [Releases](https://github.com/steam20011972-code/tv-vpn/releases) and check it: `sha256sum -c io.github.steam20011972-code.tvvpn_<version>_all.ipk.sha256`.
+1. **Download** `io.github.steam20011972-code.tvvpn_<version>_arm.ipk` and its `.sha256` from [Releases](https://github.com/steam20011972-code/tv-vpn/releases) and check it: `sha256sum -c io.github.steam20011972-code.tvvpn_<version>_arm.ipk.sha256`.
 2. **Install the IPK** with [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop), with `ares-install --device <tv> <file>.ipk`, or over SSH: copy it to `/tmp/tv-vpn.ipk` and run
    `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972-code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
 3. **Open MEDZH VPN**: components install automatically, as above. Update the same way with a newer IPK.

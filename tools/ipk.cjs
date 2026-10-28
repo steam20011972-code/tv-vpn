@@ -99,9 +99,45 @@ function normalizeTar(buf) {
   }
   return out;
 }
-// Rewrites an IPK in place with those modes and owners. Each ar header is kept byte for byte except its size field,
-// so member names and order stay exactly as ares-package wrote them.
-function normalize(ipk) {
+// Replaces fields of the "control" file in a control tar (other entries untouched). ares-package writes
+// "Architecture: all" even with an ARM binary inside, a placeholder Maintainer and Description. A field missing from
+// the file is appended. Header checksums are left to normalizeTar.
+function setControl(buf, fields) {
+  for (const [k, v] of Object.entries(fields))
+    if (!/^[A-Za-z][A-Za-z0-9-]*$/.test(k) || /[\r\n]/.test(v) || !String(v).trim())
+      throw Error('Bad control field: ' + k);
+  const parts = [];
+  let found = false;
+  for (let p = 0; p + 512 <= buf.length;) {
+    const h = Buffer.from(buf.subarray(p, p + 512));
+    if (h.every((b) => b === 0)) {
+      parts.push(buf.subarray(p));
+      break;
+    }
+    const size = parseInt(h.toString('latin1', 124, 136).replace(/\0.*$/s, '').trim() || '0', 8),
+      name = h.toString('utf8', 0, 100).replace(/\0.*$/s, '');
+    let body = buf.subarray(p + 512, p + 512 + size);
+    p += 512 + Math.ceil(size / 512) * 512;
+    if (name.replace(/^\.\//, '') === 'control' && String.fromCharCode(h[156]) === '0') {
+      let text = body.toString('utf8');
+      for (const [k, v] of Object.entries(fields)) {
+        const line = new RegExp('^' + k + ':.*$', 'm');
+        text = line.test(text)
+          ? text.replace(line, () => k + ': ' + v)
+          : text.replace(/\n?$/, '\n' + k + ': ' + v + '\n');
+      }
+      body = Buffer.from(text);
+      h.write(body.length.toString(8).padStart(11, '0') + '\0', 124, 12, 'latin1');
+      found = true;
+    }
+    parts.push(h, body, Buffer.alloc((512 - (body.length % 512)) % 512));
+  }
+  if (!found) throw Error('No control file in control.tar.gz');
+  return Buffer.concat(parts);
+}
+// Rewrites an IPK in place with those modes and owners, and with the given control fields. Each ar header is kept
+// byte for byte except its size field, so member names and order stay exactly as ares-package wrote them.
+function normalize(ipk, fields = {}) {
   const buf = fs.readFileSync(ipk),
     parts = [buf.subarray(0, 8)];
   if (buf.toString('latin1', 0, 8) !== '!<arch>\n') throw Error('Not an ar archive');
@@ -112,7 +148,9 @@ function normalize(ipk) {
     let data = buf.subarray(p + 60, p + 60 + size);
     p += 60 + size + (size % 2);
     if (/\.tar\.gz$/.test(name)) {
-      data = zlib.gzipSync(normalizeTar(zlib.gunzipSync(data)), { level: 9 });
+      let body = zlib.gunzipSync(data);
+      if (name === 'control.tar.gz' && Object.keys(fields).length) body = setControl(body, fields);
+      data = zlib.gzipSync(normalizeTar(body), { level: 9 });
       header.write(String(data.length).padEnd(10), 48, 10, 'latin1');
     }
     parts.push(header, data);
@@ -128,4 +166,10 @@ function packageOwners(ipk) {
   const m = ar(fs.readFileSync(ipk));
   return { ...owners(zlib.gunzipSync(m['control.tar.gz'])), ...owners(zlib.gunzipSync(m['data.tar.gz'])) };
 }
-module.exports = { files, modes, owners, normalizeTar, normalize, packageModes, packageOwners };
+// Text of the package's control file.
+function control(ipk) {
+  const t = tar(zlib.gunzipSync(ar(fs.readFileSync(ipk))['control.tar.gz']));
+  if (!t.control) throw Error('No control file in control.tar.gz');
+  return t.control.toString('utf8');
+}
+module.exports = { files, modes, owners, normalizeTar, setControl, normalize, control, packageModes, packageOwners };

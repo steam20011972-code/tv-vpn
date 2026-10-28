@@ -64,7 +64,7 @@ VPN-клиент для LG webOS на основе [sing-box](https://github.com
 
 Без каталога или для установки конкретной версии:
 
-1. **Скачайте** `io.github.steam20011972-code.tvvpn_<версия>_all.ipk` и файл `.sha256` из [Releases](https://github.com/steam20011972-code/tv-vpn/releases) и проверьте: `sha256sum -c io.github.steam20011972-code.tvvpn_<версия>_all.ipk.sha256`.
+1. **Скачайте** `io.github.steam20011972-code.tvvpn_<версия>_arm.ipk` и файл `.sha256` из [Releases](https://github.com/steam20011972-code/tv-vpn/releases) и проверьте: `sha256sum -c io.github.steam20011972-code.tvvpn_<версия>_arm.ipk.sha256`.
 2. **Установите IPK** через [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop), командой `ares-install --device <tv> <файл>.ipk` или по SSH: скопируйте его в `/tmp/tv-vpn.ipk` и выполните
    `luna-send -i -f luna://com.webos.appInstallService/dev/install '{"id":"io.github.steam20011972-code.tvvpn","ipkUrl":"/tmp/tv-vpn.ipk","subscribe":true}'`.
 3. **Откройте MEDZH VPN**: компоненты установятся сами, как описано выше. Обновление — так же, более новым IPK.

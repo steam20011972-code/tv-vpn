@@ -8,7 +8,7 @@ const SLUG = process.env.GITHUB_REPOSITORY || 'steam20011972-code/tv-vpn',
   REPO = 'https://github.com/' + SLUG;
 function manifest(dir = 'dist') {
   const { id, version, type, title, appDescription } = require('../app/appinfo.json'),
-    file = `${id}_${version}_all.ipk`;
+    file = `${id}_${version}_arm.ipk`;
   const ipk = fs.readFileSync(path.join(dir, file)),
     sum = fs
       .readFileSync(path.join(dir, file + '.sha256'), 'utf8')

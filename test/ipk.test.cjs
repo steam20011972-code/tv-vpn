@@ -107,3 +107,69 @@ test('normalize gives every package entry 0644 (directories 0755), owner 0:0, an
   assert.ok(checksumOk(ipk.normalizeTar(data)));
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('normalize rewrites control fields the way ares-package leaves them, keeping the rest of the file', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tvvpn-ipk-')),
+    file = path.join(dir, 'x.ipk');
+  const control = [
+    'Package: x',
+    'Version: 1.0.0',
+    'Architecture: all',
+    'Maintainer: N/A <nobody@example.com>',
+    'Description: This is a webOS application.',
+    'webOS-Package-Format-Version: 2',
+    '',
+  ].join('\n');
+  fs.writeFileSync(
+    file,
+    ar([
+      ['debian-binary', Buffer.from('2.0\n')],
+      [
+        'control.tar.gz',
+        zlib.gzipSync(
+          tarOf([
+            ['./', null],
+            ['./control', control],
+          ])
+        ),
+      ],
+      ['data.tar.gz', zlib.gzipSync(tarOf([['usr/', null]]))],
+    ])
+  );
+  ipk.normalize(file, {
+    Architecture: 'arm',
+    Maintainer: 'MEDZH VPN contributors <steam20011972-code@users.noreply.github.com>',
+    Description: 'VPN client for rooted LG webOS TVs (sing-box)',
+    Homepage: 'https://example.org/$1',
+  });
+  assert.equal(
+    ipk.control(file),
+    [
+      'Package: x',
+      'Version: 1.0.0',
+      'Architecture: arm',
+      'Maintainer: MEDZH VPN contributors <steam20011972-code@users.noreply.github.com>',
+      'Description: VPN client for rooted LG webOS TVs (sing-box)',
+      'webOS-Package-Format-Version: 2',
+      'Homepage: https://example.org/$1',
+      '',
+    ].join('\n')
+  );
+  assert.deepEqual(Object.values(ipk.packageOwners(file)), Array(3).fill('0:0'));
+  assert.throws(() => ipk.normalize(file, { Description: 'two\nlines' }), /Bad control field/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// The built package, when there is one: arm control, no ares-package placeholders.
+const app = require('../app/appinfo.json'),
+  built = path.join(__dirname, '..', 'dist', `${app.id}_${app.version}_arm.ipk`);
+test(
+  'built IPK control says Architecture: arm and has no placeholder maintainer',
+  { skip: !fs.existsSync(built) },
+  () => {
+    const c = ipk.control(built);
+    assert.match(c, /^Architecture: arm$/m);
+    assert.ok(c.split('\n').includes('Description: ' + app.appDescription));
+    assert.doesNotMatch(c, /nobody@example\.com/);
+  }
+);

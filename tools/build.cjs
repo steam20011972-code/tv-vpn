@@ -81,7 +81,7 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
     ])
   );
   const core = await fetchCore(),
-    { id, version } = require('../app/appinfo.json');
+    { id, version, appDescription } = require('../app/appinfo.json');
   // Stage the package: UI, TV runtime (setup.cjs installs it into /media/developer/tv-vpn) and the pinned core.
   const stage = 'dist/stage/app';
   fs.rmSync('dist', { recursive: true, force: true });
@@ -110,11 +110,21 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
   const cli = require.resolve('@webos-tools/cli/bin/ares-package.js');
   // --no-minify: files ship exactly as in Git, so vendor/qrcode.js keeps its MIT header.
   cp.execFileSync(process.execPath, [cli, stage, '-o', 'dist', '--no-minify'], { stdio: 'inherit' });
-  const file = `${id}_${version}_all.ipk`,
+  // ares-package names the file _all and writes "Architecture: all": it reads the ELF header of main only, and main
+  // here is index.html. The package carries an ARMv7 sing-box, so control and the file name say arm.
+  const file = `${id}_${version}_arm.ipk`,
     ipk = require('./ipk.cjs');
+  fs.renameSync(`dist/${id}_${version}_all.ipk`, 'dist/' + file);
   // The installer keeps tar modes and owners: no entry may be writable by group or others, and every entry is root's
   // (runtime/setup.cjs runs as root and refuses anything else).
-  ipk.normalize('dist/' + file);
+  ipk.normalize('dist/' + file, {
+    Architecture: 'arm',
+    Maintainer: 'MEDZH VPN contributors <steam20011972-code@users.noreply.github.com>',
+    Description: appDescription,
+  });
+  const control = ipk.control('dist/' + file);
+  if (!/^Architecture: arm$/m.test(control) || /nobody@example.com/.test(control))
+    throw Error('Package control was not rewritten');
   const loose = Object.entries(ipk.packageModes('dist/' + file))
     .filter(([, m]) => m & 0o022)
     .map(([n]) => n);
