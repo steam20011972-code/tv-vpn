@@ -104,6 +104,8 @@ While the QR code is shown, the TV runs a small web page on its LAN address: pla
 
 ## Development
 
+How the pieces fit together — the app, its root Luna service, the supervisor, watchdog, boot hook and core, what runs as root and what is created on the TV — is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 Requirements: Node.js 20+, root SSH access to the TV over LAN, the TV host key in `~/.ssh/known_hosts`.
 
 ```sh
@@ -178,7 +180,7 @@ Questions and feedback: Telegram [@medzh_vpn](https://t.me/medzh_vpn). Bugs go t
 
 ## Security
 
-Profiles, keys and subscription URLs never go into Git, the IPK, logs or diagnostics; on the TV they are mode 0600, and import results show only counts. To report a vulnerability see [SECURITY.md](SECURITY.md).
+Profiles, keys and subscription URLs never go into Git, the IPK, logs or diagnostics; on the TV they are mode 0600, and import results show only counts. The trust model and its known limits are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#trust-model). To report a vulnerability see [SECURITY.md](SECURITY.md).
 
 ## License
 
