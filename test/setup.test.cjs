@@ -13,7 +13,7 @@ process.env.TVVPN_ALLOW_UNSIGNED = '1';
 fs.mkdirSync(process.env.TVVPN_HOME);
 const C = require('../runtime/common.cjs'),
   setup = require('../runtime/setup.cjs'),
-  { secureApp } = require('../runtime/secure-app.cjs');
+  { secureApp, securePackage } = require('../runtime/secure-app.cjs');
 const BASE = process.env.TVVPN_HOME;
 // Fake app directory laid out like the IPK built by tools/build.cjs.
 function fakeApp(name, version = '9.9.9', core = Buffer.from('fake core ' + name)) {
@@ -34,13 +34,29 @@ const app = fakeApp('app');
 test('deploy installs runtime, verified core, boot hook and version marker', () => {
   fs.writeFileSync(BASE + '/profile.json', '{}');
   fs.chmodSync(BASE + '/profile.json', 0o777);
+  // As devmode.sh leaves run/ after a boot; a link there is not followed.
+  fs.writeFileSync(C.RUN + '/events.log', '');
+  fs.chmodSync(C.RUN + '/events.log', 0o777);
+  const outside = path.join(tmp, 'outside-run');
+  fs.writeFileSync(outside, '');
+  fs.chmodSync(outside, 0o644);
+  if (process.platform !== 'win32') fs.symlinkSync(outside, C.RUN + '/link');
   setup.deploy(C, app);
-  if (process.platform !== 'win32') assert.equal(fs.statSync(BASE + '/profile.json').mode & 0o777, 0o600);
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(BASE + '/profile.json').mode & 0o777, 0o600);
+    assert.equal(fs.statSync(C.RUN + '/events.log').mode & 0o777, 0o600);
+    assert.equal(fs.statSync(outside).mode & 0o777, 0o644);
+    assert.equal(fs.statSync(BASE + '/bin/LICENSE').mode & 0o777, 0o600);
+    fs.unlinkSync(C.RUN + '/link');
+  }
   fs.unlinkSync(BASE + '/profile.json');
+  fs.unlinkSync(C.RUN + '/events.log');
   for (const f of ['runtime/supervisor.cjs', 'runtime/watchdog.sh', 'runtime/setup.cjs', 'bin/sing-box', 'bin/LICENSE'])
     assert.ok(fs.existsSync(BASE + '/' + f), f);
   assert.equal(fs.readFileSync(C.HOOK, 'utf8'), fs.readFileSync('runtime/70-tv-vpn', 'utf8'));
   assert.equal(C.read('installed.json').version, '9.9.9');
+  // The package, for launch.cjs to tighten at boot.
+  assert.equal(C.read('installed.json').app, path.resolve(app));
   assert.ok(!fs.existsSync(BASE + '/runtime.new') && !fs.existsSync(BASE + '/runtime.old'));
   if (process.platform !== 'win32') {
     assert.equal(fs.statSync(BASE + '/bin/sing-box').mode & 0o777, 0o700);
@@ -126,6 +142,62 @@ test(
     assert.throws(() => secureApp(loose, process.getuid() + 1), { code: 'package-unsafe' });
     fs.symlinkSync('/etc/hostname', loose + '/runtime/link.cjs');
     assert.throws(() => secureApp(loose, process.getuid()), { code: 'package-unsafe' });
+    // A named pipe is not opened: only files and directories are.
+    fs.rmSync(loose + '/runtime/link.cjs');
+    cp.execFileSync('mkfifo', [loose + '/runtime/pipe']);
+    assert.throws(() => secureApp(loose, process.getuid()), { code: 'package-unsafe' });
+  }
+);
+test(
+  'secureApp changes nothing reached through a directory swapped for a link',
+  { skip: process.platform !== 'linux' },
+  () => {
+    // A directory of the package swapped for a link after it was checked: the walk then reaches the next entry
+    // through the link, into someone else's tree (played here by readdir naming the entry through the link). Opened
+    // without following a last link, the file is still not the one at the expected path; /proc/self/fd shows it.
+    const outside = path.join(tmp, 'outside'),
+      pkg = fs.realpathSync(fakeApp('swapped'));
+    fs.mkdirSync(outside);
+    fs.writeFileSync(outside + '/victim', '');
+    fs.chmodSync(outside + '/victim', 0o666);
+    fs.symlinkSync(outside, pkg + '/runtime.link');
+    const readdir = fs.readdirSync;
+    fs.readdirSync = (p, ...rest) => (p === pkg ? ['runtime.link/victim'] : readdir(p, ...rest));
+    try {
+      assert.throws(() => secureApp(pkg, process.getuid()), { code: 'package-unsafe' });
+    } finally {
+      fs.readdirSync = readdir;
+    }
+    assert.equal(fs.statSync(outside + '/victim').mode & 0o777, 0o666);
+  }
+);
+test(
+  'securePackage puts back the modes of the app and of its Luna service beside it',
+  { skip: process.platform === 'win32' },
+  () => {
+    const root = path.join(tmp, 'palm'),
+      appDir = path.join(root, 'applications', 'org.example.app'),
+      serviceDir = path.join(root, 'services', 'org.example.app.service');
+    fs.mkdirSync(appDir, { recursive: true });
+    fs.mkdirSync(serviceDir, { recursive: true });
+    fs.writeFileSync(appDir + '/appinfo.json', '{}');
+    fs.writeFileSync(serviceDir + '/service.js', '');
+    // As devmode.sh leaves them after a boot.
+    for (const p of [appDir, appDir + '/appinfo.json', serviceDir, serviceDir + '/service.js']) fs.chmodSync(p, 0o777);
+    assert.deepEqual(securePackage(appDir, process.getuid()), [true, true]);
+    assert.deepEqual(
+      [appDir, appDir + '/appinfo.json', serviceDir, serviceDir + '/service.js'].map(
+        (p) => fs.statSync(p).mode & 0o777
+      ),
+      [0o755, 0o644, 0o755, 0o644]
+    );
+    // One that fails secureApp is left alone; the other is still done.
+    fs.symlinkSync('/etc/hostname', serviceDir + '/link');
+    fs.chmodSync(appDir, 0o777);
+    assert.deepEqual(securePackage(appDir, process.getuid()), [true, false]);
+    assert.equal(fs.statSync(appDir).mode & 0o777, 0o755);
+    fs.rmSync(serviceDir, { recursive: true });
+    assert.deepEqual(securePackage(appDir, process.getuid()), [true, false]);
   }
 );
 test(

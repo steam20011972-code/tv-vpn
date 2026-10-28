@@ -4,7 +4,7 @@ const cp = require('child_process'),
   http = require('http'),
   path = require('path');
 const SERVER = path.join(__dirname, '../runtime/import-server.cjs');
-const { privateSource } = require(SERVER);
+const { privateSource, dropRoot, UNPRIVILEGED } = require(SERVER);
 // Starts the listener on loopback the way the supervisor does; reply(text) plays the supervisor's import.
 function start(reply = () => ({ added: 1, updated: 0, removed: 0, rejected: {} }), ttl) {
   const child = cp.fork(SERVER, ['127.0.0.1', ...(ttl ? [String(ttl)] : [])], {
@@ -136,6 +136,36 @@ test('closes itself when the time is up or the supervisor goes away', async () =
   await orphan.ready;
   orphan.disconnect();
   assert.equal(await orphan.exited, 0);
+});
+test('as root it gives up root for a uid and gid no one uses, groups first; otherwise it changes nothing', () => {
+  const fake = (uid) => {
+    const calls = [];
+    return {
+      calls,
+      getuid: () => uid,
+      getgid: () => (calls.some((c) => c[0] === 'setgid') ? UNPRIVILEGED : uid),
+      setgroups: (g) => calls.push(['setgroups', g]),
+      setgid: (g) => calls.push(['setgid', g]),
+      setuid: (u) => {
+        calls.push(['setuid', u]);
+        uid = u;
+      },
+    };
+  };
+  assert.ok(UNPRIVILEGED > 7010);
+  const root = fake(0);
+  dropRoot(root);
+  assert.deepEqual(root.calls, [
+    ['setgroups', []],
+    ['setgid', UNPRIVILEGED],
+    ['setuid', UNPRIVILEGED],
+  ]);
+  const user = fake(1000);
+  dropRoot(user);
+  assert.deepEqual(user.calls, []);
+  // A uid change that did not take: the listener stops instead of serving.
+  const stuck = Object.assign(fake(0), { setuid: () => {} });
+  assert.throws(() => dropRoot(stuck));
 });
 test('refuses to listen on a public address or without a supervisor', async () => {
   const child = cp.fork(SERVER, ['8.8.8.8'], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });

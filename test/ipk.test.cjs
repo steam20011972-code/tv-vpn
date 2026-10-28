@@ -181,7 +181,7 @@ test(
     const files = ipk.files(built),
       old = 'io.github.steam20011972-code.tvvpn',
       service = `usr/palm/services/${app.id}.service/service.js`;
-    for (const name of ['service.js', 'services.json', 'package.json', 'secure-app.cjs'])
+    for (const name of ['service.js', 'services.json', 'package.json', 'secure-app.cjs', 'signature.cjs'])
       assert.ok(files[`usr/palm/services/${app.id}.service/${name}`], name);
     assert.ok(files[`usr/palm/applications/${app.id}/appinfo.json`]);
     assert.ok(Object.keys(ipk.packageModes(built)).every((n) => !n.includes(old)));

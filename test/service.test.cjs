@@ -15,9 +15,20 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tvvpn-service-')),
 fs.mkdirSync(serviceDir, { recursive: true });
 fs.cpSync('service', serviceDir, { recursive: true });
 fs.copyFileSync('runtime/secure-app.cjs', serviceDir + '/secure-app.cjs');
+fs.copyFileSync('runtime/signature.cjs', serviceDir + '/signature.cjs');
 fs.mkdirSync(appDir + '/runtime', { recursive: true });
-fs.writeFileSync(appDir + '/appinfo.json', '{}');
-fs.writeFileSync(appDir + '/runtime/setup.cjs', '');
+fs.writeFileSync(appDir + '/appinfo.json', JSON.stringify({ id: app.id, version: app.version }));
+fs.writeFileSync(appDir + '/runtime/setup.cjs', '// package setup.cjs\n');
+fs.writeFileSync(appDir + '/runtime/common.cjs', '// package common.cjs\n');
+// The package signed with a test key, which the service is given in place of the release key.
+const SIG = require('../runtime/signature.cjs'),
+  keys = require('crypto').generateKeyPairSync('ed25519'),
+  publicKey = keys.publicKey.export({ type: 'spki', format: 'pem' });
+function sign(key = keys.privateKey) {
+  const m = SIG.manifest(appDir, app.version);
+  fs.writeFileSync(appDir + '/manifest.json', m);
+  fs.writeFileSync(appDir + '/manifest.sig', SIG.sign(m, key));
+}
 // Stand-in for the system webos-service: records the service name and the registered methods. The service asks for
 // it by absolute path only; a bare require('webos-service') would not find it here and the require below would fail.
 const stub = path.join(tmp, 'webos-service.cjs');
@@ -85,11 +96,24 @@ function runner(reply = () => '{"ok":true}\n', hold = false) {
   };
   return { calls, execFile };
 }
-const elevated = (r, extra) => Object.assign({ uid: 0, owner, base: base(), execFile: r.execFile }, extra);
+const scratch = fs.mkdtempSync(path.join(tmp, 'scratch-'));
+const elevated = (r, extra) =>
+  Object.assign({ uid: 0, owner, base: base(), execFile: r.execFile, publicKey, tmp: scratch }, extra);
 const tick = () => new Promise((r) => setImmediate(r));
+// A call as webos-service hands it over: the app id the bus gives it (WAM adds " <pid>"; "" when the caller is not
+// an app) and, as message.sender, that id or else the caller's bus name.
+function message(appId, payload, respond, busName = 'com.webos.lunasend-4242') {
+  const id = appId == null ? '' : appId;
+  return {
+    sender: id !== '' ? id.split(' ')[0] : busName,
+    payload,
+    respond,
+    ls2Message: { applicationID: () => id, senderServiceName: () => busName },
+  };
+}
 // A registered method called the way the bus does, with what it answers.
-function callRegistered(method, sender, payload) {
-  return new Promise((done) => registry.methods[method]({ sender, payload, respond: done }));
+function callRegistered(method, appId, payload, busName) {
+  return new Promise((done) => registry.methods[method](message(appId, payload, done, busName)));
 }
 
 test('the service id has no hyphen, matches the app id and offers exactly the planned methods', () => {
@@ -137,10 +161,26 @@ test('any caller but the app gets forbidden, before anything else is looked at, 
       }
       assert.deepEqual(await S.handle('exec', sender, {}, elevated(r)), { ok: false, error: 'forbidden' });
     }
+    // A client that is not an app but took a bus name equal to the app id: message.sender would match.
+    for (const method of PLANNED)
+      assert.deepEqual(await callRegistered(method, '', VALID[method], app.id), {
+        ok: false,
+        error: 'forbidden',
+        returnValue: false,
+      });
   } finally {
     cp.execFile = real;
   }
   assert.equal(r.calls.length, 0);
+});
+
+test('the caller is the app id the bus gives the call, without the pid WAM adds; never the bus name', () => {
+  assert.equal(S.caller(message(app.id)), app.id);
+  assert.equal(S.caller(message(app.id + ' 1860')), app.id);
+  assert.equal(S.caller(message('', {}, null, app.id)), null);
+  assert.equal(S.caller({ sender: app.id }), null);
+  assert.equal(S.caller({ sender: app.id, ls2Message: { applicationID: () => undefined } }), null);
+  assert.equal(S.caller(null), null);
 });
 
 test('not running as root (not elevated yet, or reset by an update): not-elevated, and nothing runs', async () => {
@@ -252,6 +292,8 @@ test('every method runs /usr/bin/node with an argument array, never through a sh
     assert.ok(Array.isArray(call.args) && call.args.every((a) => typeof a === 'string'), method);
     assert.deepEqual(call.args, want[method], method);
     assert.ok(!call.options.shell, method);
+    // Nothing of the service's own environment (NODE_OPTIONS, TVVPN_*) reaches what runs as root.
+    assert.deepEqual(call.options.env, { PATH: '/usr/sbin:/usr/bin:/sbin:/bin' }, method);
     // Install and uninstall are never cut short; everything else has a time limit.
     assert.equal(call.options.timeout > 0, !['setupInstall', 'setupUninstall'].includes(method), method);
   }
@@ -261,7 +303,24 @@ test('every method runs /usr/bin/node with an argument array, never through a sh
   assert.deepEqual(r.calls.pop().args, [setup, 'uninstall', 'delete-profile', '--app', appDir]);
 });
 
-test('setup runs the installed root-only copy once there is one, else the package copy after secureApp', async () => {
+// What a run of the package's own setup.cjs saw: its directory, the files there and their modes while it ran.
+function bootstrapRunner() {
+  const seen = [];
+  const r = runner((args) => {
+    const dir = path.dirname(args[0]);
+    seen.push({
+      args,
+      dir,
+      files: Object.fromEntries(fs.readdirSync(dir).map((f) => [f, fs.readFileSync(path.join(dir, f), 'utf8')])),
+      modes: [dir, ...fs.readdirSync(dir).map((f) => path.join(dir, f))].map((f) => fs.statSync(f).mode & 0o777),
+    });
+    return '{"ok":true}';
+  });
+  return Object.assign(r, { seen });
+}
+
+test('setup runs the installed root-only copy once there is one, else a checked copy of the package', async () => {
+  sign();
   const r = runner();
   if (posix) fs.chmodSync(appDir, 0o777);
   const o = elevated(r);
@@ -272,8 +331,19 @@ test('setup runs the installed root-only copy once there is one, else the packag
   // First install: no BASE yet, or BASE without runtime (components removed, profiles kept).
   const empty = fs.mkdtempSync(path.join(tmp, 'base-'));
   for (const b of [path.join(tmp, 'absent'), empty]) {
-    await S.handle('setupInstall', app.id, {}, elevated(r, { base: b }));
-    assert.deepEqual(r.calls.pop().args, [path.join(appDir, 'runtime', 'setup.cjs'), 'install', '--app', appDir]);
+    const boot = bootstrapRunner();
+    assert.deepEqual(await S.handle('setupInstall', app.id, {}, elevated(boot, { base: b })), { ok: true });
+    const [run] = boot.seen;
+    // Not the package's own file: a fresh copy of its signed runtime, run with the package as --app.
+    assert.deepEqual(run.args, [path.join(run.dir, 'setup.cjs'), 'install', '--app', appDir]);
+    assert.equal(path.dirname(run.dir), scratch);
+    assert.deepEqual(run.files, {
+      'common.cjs': '// package common.cjs\n',
+      'setup.cjs': '// package setup.cjs\n',
+    });
+    if (posix) assert.deepEqual(run.modes, [0o700, 0o600, 0o600]);
+    // Removed once the answer is in.
+    assert.equal(fs.existsSync(run.dir), false);
     if (posix) assert.equal(fs.statSync(appDir).mode & 0o777, 0o755);
     if (posix) fs.chmodSync(appDir, 0o777);
     // No installed controller yet: nothing to run for VPN methods.
@@ -283,10 +353,46 @@ test('setup runs the installed root-only copy once there is one, else the packag
     });
   }
   // Components from 0.6.1 or older: their setup.cjs does not take --app.
-  await S.handle('setupStatus', app.id, {}, elevated(r, { base: base(false) }));
-  assert.equal(r.calls.pop().args[0], path.join(appDir, 'runtime', 'setup.cjs'));
+  const boot = bootstrapRunner();
+  await S.handle('setupStatus', app.id, {}, elevated(boot, { base: base(false) }));
+  assert.deepEqual(boot.seen[0].args.slice(1), ['status', '--app', appDir]);
+  assert.equal(path.dirname(boot.seen[0].dir), scratch);
   assert.equal(r.calls.length, 0);
+  assert.deepEqual(fs.readdirSync(scratch), []);
   if (posix) fs.chmodSync(appDir, 0o755);
+});
+
+test('the package copy runs only when its runtime matches the manifest signed with the service key', async () => {
+  const absent = path.join(tmp, 'absent'),
+    setupFile = appDir + '/runtime/setup.cjs';
+  const refused = async (error) => {
+    const r = runner();
+    for (const method of ['setupStatus', 'setupInstall', 'setupUninstall'])
+      assert.deepEqual(await S.handle(method, app.id, VALID[method], elevated(r, { base: absent })), {
+        ok: false,
+        error,
+      });
+    assert.equal(r.calls.length, 0);
+    assert.deepEqual(fs.readdirSync(scratch), []);
+  };
+  sign();
+  // Changed after signing.
+  fs.writeFileSync(setupFile, '// package setup.cjs\nrequire("child_process").execSync("id");\n');
+  await refused('package-mismatch');
+  fs.writeFileSync(setupFile, '// package setup.cjs\n');
+  // A file added to runtime/.
+  fs.writeFileSync(appDir + '/runtime/extra.cjs', '');
+  await refused('package-mismatch');
+  fs.rmSync(appDir + '/runtime/extra.cjs');
+  // Signed with another key.
+  sign(require('crypto').generateKeyPairSync('ed25519').privateKey);
+  await refused('package-signature');
+  // Not signed.
+  fs.rmSync(appDir + '/manifest.sig');
+  await refused('package-unsigned');
+  sign();
+  const r = bootstrapRunner();
+  assert.deepEqual(await S.handle('setupStatus', app.id, {}, elevated(r, { base: absent })), { ok: true });
 });
 
 test('package-unsafe: a package directory that fails secureApp runs nothing', async () => {
@@ -307,7 +413,9 @@ test('package-unsafe: a package directory that fails secureApp runs nothing', as
         ok: false,
         error: 'package-unsafe',
       });
-      fs.rmSync(appDir + '/runtime/' + fs.readdirSync(appDir + '/runtime').find((f) => f !== 'setup.cjs'));
+      fs.rmSync(
+        appDir + '/runtime/' + fs.readdirSync(appDir + '/runtime').find((f) => !/^(setup|common).cjs$/.test(f))
+      );
     }
   assert.equal(r.calls.length, 0);
 });
@@ -376,7 +484,12 @@ test('setupInstall removes the package with the old id first, and installs nothi
   assert.equal(S.LEGACY_ID, 'io.github.steam20011972-code.tvvpn');
   const legacy = path.join(path.dirname(appDir), S.LEGACY_ID),
     order = [];
-  fs.mkdirSync(legacy + '/runtime', { recursive: true });
+  // As the installer leaves it: root's directory with root's appinfo.json naming the old id.
+  const plant = (id = S.LEGACY_ID) => {
+    fs.mkdirSync(legacy + '/runtime', { recursive: true });
+    fs.writeFileSync(legacy + '/appinfo.json', JSON.stringify({ id }));
+  };
+  plant();
   const r = runner((args) => {
       order.push('setup ' + args[1]);
       return '{"ok":true}';
@@ -399,8 +512,24 @@ test('setupInstall removes the package with the old id first, and installs nothi
   // Gone already: nothing to remove.
   await S.handle('setupInstall', app.id, {}, elevated(r, { removeApp }));
   assert.deepEqual(removed, [S.LEGACY_ID]);
+  // A directory of that name that the installer did not leave (anyone can make one in applications/): not the old
+  // package, so it neither blocks the install nor is handed to the installer.
+  for (const fake of [() => fs.mkdirSync(legacy), () => plant('io.github.steam20011972code.tvvpn'), () => plant('')]) {
+    fake();
+    assert.deepEqual(await S.handle('setupInstall', app.id, {}, elevated(r, { removeApp })), { ok: true });
+    assert.deepEqual(removed, [S.LEGACY_ID]);
+    fs.rmSync(legacy, { recursive: true });
+  }
+  if (posix) {
+    plant();
+    fs.renameSync(legacy + '/appinfo.json', legacy + '/real.json');
+    fs.symlinkSync(legacy + '/real.json', legacy + '/appinfo.json');
+    assert.deepEqual(await S.handle('setupInstall', app.id, {}, elevated(r, { removeApp })), { ok: true });
+    assert.deepEqual(removed, [S.LEGACY_ID]);
+    fs.rmSync(legacy, { recursive: true });
+  }
   // The installer did not remove it: no install.
-  fs.mkdirSync(legacy);
+  plant();
   const calls = r.calls.length;
   assert.deepEqual(await S.handle('setupInstall', app.id, {}, elevated(r, { removeApp: async () => {} })), {
     ok: false,

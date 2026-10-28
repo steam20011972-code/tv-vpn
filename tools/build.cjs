@@ -100,8 +100,8 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
   fs.copyFileSync('core.lock.json', stage + '/core.lock.json');
   fs.copyFileSync('THIRD_PARTY_NOTICES', stage + '/THIRD_PARTY_NOTICES');
   fs.copyFileSync('LICENSE', stage + '/LICENSE');
-  // The service carries its own copy of runtime/secure-app.cjs: it checks the app directory before running anything
-  // from it, so it cannot load that check from there.
+  // The service carries its own copies of runtime/secure-app.cjs and runtime/signature.cjs: it checks the app
+  // directory and the package signature before running anything from it, so it cannot load those checks from there.
   const services = require('../service/services.json'),
     servicePackage = require('../service/package.json'),
     serviceAppId = (/APP_ID = '([^']*)'/.exec(fs.readFileSync('service/service.js', 'utf8')) || [])[1];
@@ -111,6 +111,7 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
   fs.mkdirSync(serviceStage, { recursive: true });
   fs.cpSync('service', serviceStage, { recursive: true });
   fs.copyFileSync('runtime/secure-app.cjs', serviceStage + '/secure-app.cjs');
+  fs.copyFileSync('runtime/signature.cjs', serviceStage + '/signature.cjs');
   // Release signature (runtime/signature.cjs). Key: TVVPN_SIGNING_KEY (CI secret), TVVPN_SIGNING_KEY_FILE or
   // ~/.tvvpn/release-signing.key. Without one the package is unsigned and setup.cjs on the TV refuses to install it.
   const SIG = require('../runtime/signature.cjs'),
@@ -189,6 +190,7 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
     ['services.json', 'service/services.json'],
     ['package.json', 'service/package.json'],
     ['secure-app.cjs', 'runtime/secure-app.cjs'],
+    ['signature.cjs', 'runtime/signature.cjs'],
   ]) {
     const b = packaged[`usr/palm/services/${serviceId}/${name}`];
     if (!b) throw Error('Missing from package: service ' + name);

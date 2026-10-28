@@ -251,6 +251,8 @@ function deploy(C, app = APP, { publicKey } = {}) {
     version: info.version,
     core: lock.version,
     coreSha256: lock.binarySha256,
+    // For launch.cjs, which tightens the package's modes again at boot.
+    app: path.resolve(app),
     installedAt: new Date().toISOString(),
   });
   C.harden();

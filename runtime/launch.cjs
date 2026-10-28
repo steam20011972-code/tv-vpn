@@ -1,5 +1,10 @@
 'use strict';
 const C = require('./common.cjs');
+// The package the components came from, as setup.cjs recorded it; its modes go back to the installer's at boot.
+if (process.argv[2] === 'boot') {
+  const app = (C.read('installed.json') || {}).app;
+  if (typeof app === 'string' && require('path').isAbsolute(app)) require('./secure-app.cjs').securePackage(app);
+}
 const old = C.read('run/supervisor.json');
 if (old && C.ownedProcess(old.pid, old.identity, C.BASE + '/runtime/supervisor.cjs')) {
   if (process.argv[2] === 'resume') {

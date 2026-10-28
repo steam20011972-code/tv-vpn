@@ -16,6 +16,17 @@ const token = crypto.randomBytes(16).toString('hex'),
 let busy = false,
   seq = 0;
 const waiting = new Map();
+// Forked by the root supervisor. Once the socket is bound it needs no privilege, so it gives up root for a uid and
+// gid that no account or running process on the TV had (2026-10-28: accounts up to 7010, jailed apps 5261–7010);
+// the socket and the IPC channel stay open. It answers nothing before that.
+const UNPRIVILEGED = 65532;
+function dropRoot(p = process) {
+  if (!p.getuid || p.getuid() !== 0) return;
+  p.setgroups([]);
+  p.setgid(UNPRIVILEGED);
+  p.setuid(UNPRIVILEGED);
+  if (p.getuid() !== UNPRIVILEGED || p.getgid() !== UNPRIVILEGED) throw Error('still privileged');
+}
 function privateSource(address) {
   const m = String(address)
     .replace(/^::ffff:/, '')
@@ -265,13 +276,19 @@ if (require.main === module) {
     } catch {}
     process.exit(1);
   });
-  server.listen(0, host, () =>
-    process.send({ type: 'listening', url: 'http://' + host + ':' + server.address().port + '/' + token, expiresAt })
-  );
+  server.listen(0, host, () => {
+    try {
+      dropRoot();
+    } catch {
+      server.emit('error', Error('drop-root'));
+      return;
+    }
+    process.send({ type: 'listening', url: 'http://' + host + ':' + server.address().port + '/' + token, expiresAt });
+  });
   setTimeout(() => process.exit(0), TTL).unref();
   process.on('disconnect', () => process.exit(0));
   setInterval(() => {
     if (process.ppid !== parent) process.exit(0);
   }, 1000).unref();
 }
-module.exports = { privateSource, language, T };
+module.exports = { UNPRIVILEGED, dropRoot, privateSource, language, T };

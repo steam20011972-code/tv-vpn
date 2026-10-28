@@ -97,6 +97,7 @@ function harden() {
     ['', 0o700],
     ['/bin', 0o700],
     ['/bin/sing-box', 0o700],
+    ['/bin/LICENSE', 0o600],
     ['/runtime', 0o700],
     ['/run', 0o700],
     ['/profile.json', 0o600],
@@ -112,6 +113,11 @@ function harden() {
   try {
     for (const f of fs.readdirSync(BASE + '/profiles'))
       if (f.endsWith('.json')) fs.chmodSync(BASE + '/profiles/' + f, 0o600);
+  } catch {}
+  // Logs, heartbeat and leases in run/ (devmode.sh leaves them 0777 after a boot): plain files only, never through
+  // a link.
+  try {
+    for (const f of fs.readdirSync(RUN)) if (fs.lstatSync(RUN + '/' + f).isFile()) fs.chmodSync(RUN + '/' + f, 0o600);
   } catch {}
 }
 function log(event) {
