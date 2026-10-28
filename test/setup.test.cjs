@@ -75,6 +75,16 @@ test('deploy is idempotent and does not recopy a matching core', () => {
 test('a newer app version reports the install as outdated', () => {
   assert.equal(setup.status(fakeApp('newer', '10.0.0')).current, false);
 });
+test('an install without the package path (as a 0.6.x copy writes it), or with another one, is not current', () => {
+  const saved = C.read('installed.json');
+  const { app: _, ...without } = saved;
+  C.write('installed.json', without);
+  assert.equal(setup.status(app).current, false);
+  C.write('installed.json', { ...saved, app: path.resolve(fakeApp('elsewhere')) });
+  assert.equal(setup.status(app).current, false);
+  C.write('installed.json', saved);
+  assert.equal(setup.status(app).current, true);
+});
 test('core whose hash differs from core.lock.json is rejected before anything is replaced', () => {
   const bad = fakeApp('bad', '9.9.10');
   fs.writeFileSync(bad + '/core/sing-box', 'tampered');

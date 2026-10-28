@@ -37,6 +37,18 @@ function command(exe, args, allow = false) {
     throw Error(exe + ' failed');
   }
 }
+// A yes/no check such as sing-box check, without blocking the event loop: resolves true when the program exits 0 and
+// false when it exits with another code. Rejects when there is no answer (timed out, killed, did not start): after
+// boot the TV can be slow enough for that, and it says nothing about what was checked.
+function verdict(exe, args, timeout = 30000) {
+  return new Promise((resolve, reject) =>
+    cp.execFile(exe, args, { timeout, maxBuffer: 1024 * 1024 }, (e) => {
+      if (!e) resolve(true);
+      else if (typeof e.code === 'number') resolve(false);
+      else reject(Error(exe + ' gave no answer'));
+    })
+  );
+}
 function processIdentity(pid) {
   try {
     const s = fs.readFileSync('/proc/' + pid + '/stat', 'utf8');
@@ -224,6 +236,7 @@ module.exports = {
   read,
   write,
   command,
+  verdict,
   processIdentity,
   ownedProcess,
   killOwned,

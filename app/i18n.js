@@ -128,6 +128,7 @@
       errors: {
         'connection-failed': 'Не удалось подключиться к VPN',
         'connection-lost': 'Соединение с VPN потеряно',
+        'core-check-failed': 'Сетевой модуль не ответил вовремя. Повторим подключение',
         'core-start-failed': 'Не удалось запустить сетевой модуль',
         'invalid-profile': 'Проверьте профиль VPN',
         'no-network': 'Телевизор не подключён к сети',
@@ -320,6 +321,7 @@
       errors: {
         'connection-failed': 'Could not connect to VPN',
         'connection-lost': 'VPN connection lost',
+        'core-check-failed': 'The network module did not answer in time. Retrying',
         'core-start-failed': 'Could not start the network module',
         'invalid-profile': 'Check the VPN profile',
         'no-network': 'The TV is not connected to a network',

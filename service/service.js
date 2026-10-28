@@ -242,7 +242,13 @@ async function handle(method, sender, payload, options) {
     if (method === 'setupInstall')
       return await serial(async () => {
         await removeLegacy(o);
-        return setup(method, args, fallback, o);
+        const r = await setup(method, args, fallback, o);
+        if (!r.ok) return r;
+        // The install ran in the installed copy, which may be an older version's (0.6.x on the way to 0.7.x). The
+        // copy it has just put in place may still find the install incomplete (installed.json without the package
+        // path, as 0.6.x writes it): one more install, by that copy.
+        const s = await setup('setupStatus', [], fallback, o);
+        return s.ok && s.ready === true && s.current === false ? setup(method, args, fallback, o) : r;
       });
     return await serial(() => setup(method, args, fallback, o));
   } catch (e) {

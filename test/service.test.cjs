@@ -285,8 +285,15 @@ test('every method runs /usr/bin/node with an argument array, never through a sh
     setupUninstall: [setup, 'uninstall', 'keep-profile', '--app', appDir],
   };
   for (const method of PLANNED) {
+    r.calls.length = 0;
     const answer = await S.handle(method, app.id, VALID[method], o),
-      call = r.calls.pop();
+      call = r.calls[0];
+    // After an install: one status run by the copy it left (no second install, as current is not false).
+    if (method === 'setupInstall')
+      assert.deepEqual(
+        r.calls.slice(1).map((c) => c.args),
+        [want.setupStatus]
+      );
     assert.deepEqual(answer, { ok: true, ran: want[method][1] }, method);
     assert.equal(call.file, '/usr/bin/node');
     assert.ok(Array.isArray(call.args) && call.args.every((a) => typeof a === 'string'), method);
@@ -325,7 +332,8 @@ test('setup runs the installed root-only copy once there is one, else a checked 
   if (posix) fs.chmodSync(appDir, 0o777);
   const o = elevated(r);
   await S.handle('setupInstall', app.id, {}, o);
-  assert.equal(r.calls.pop().args[0], path.join(o.base, 'runtime', 'setup.cjs'));
+  assert.equal(r.calls[0].args[0], path.join(o.base, 'runtime', 'setup.cjs'));
+  r.calls.length = 0;
   // The package directory is left as it was: none of its code ran.
   if (posix) assert.equal(fs.statSync(appDir).mode & 0o777, 0o777);
   // First install: no BASE yet, or BASE without runtime (components removed, profiles kept).
@@ -472,12 +480,41 @@ test('one install or uninstall at a time; status does not wait', async () => {
   r.calls[1].answer('{"ok":true,"current":true}');
   assert.deepEqual(await status, { ok: true, current: true });
   r.calls[0].answer('{"ok":true}');
+  await tick();
+  // The status after the install is still part of it: the uninstall waits.
+  assert.equal(r.calls.length, 3);
+  assert.equal(r.calls[2].args[1], 'status');
+  r.calls[2].answer('{"ok":true,"ready":true,"current":true}');
   assert.deepEqual(await first, { ok: true });
   await tick();
-  assert.equal(r.calls.length, 3);
-  assert.equal(r.calls[2].args[1], 'uninstall');
-  r.calls[2].answer('{"ok":true,"profileRetained":true}');
+  assert.equal(r.calls.length, 4);
+  assert.equal(r.calls[3].args[1], 'uninstall');
+  r.calls[3].answer('{"ok":true,"profileRetained":true}');
   assert.deepEqual(await second, { ok: true, profileRetained: true });
+});
+
+test('an install the copy it left finds incomplete (0.6.x copy: no package path) runs once more, by that copy', async () => {
+  const runs = (statusAnswer, installAnswer = '{"ok":true,"n":1}') => {
+    let installs = 0;
+    const r = runner((args) =>
+      args[1] === 'status' ? statusAnswer : installs++ ? '{"ok":true,"n":2}' : installAnswer
+    );
+    return S.handle('setupInstall', app.id, {}, elevated(r)).then((answer) => ({
+      answer,
+      steps: r.calls.map((c) => c.args[1]),
+    }));
+  };
+  assert.deepEqual(await runs('{"ok":true,"ready":true,"current":false}'), {
+    answer: { ok: true, n: 2 },
+    steps: ['install', 'status', 'install'],
+  });
+  for (const s of ['{"ok":true,"ready":true,"current":true}', '{"ok":true,"ready":false,"current":false}', 'garbage'])
+    assert.deepEqual(await runs(s), { answer: { ok: true, n: 1 }, steps: ['install', 'status'] }, s);
+  // A failed install is answered as it is.
+  assert.deepEqual(await runs('{"ok":true,"ready":true,"current":false}', '{"ok":false,"error":"core-mismatch"}'), {
+    answer: { ok: false, error: 'core-mismatch' },
+    steps: ['install'],
+  });
 });
 
 test('setupInstall removes the package with the old id first, and installs nothing while it stays', async () => {
@@ -508,7 +545,7 @@ test('setupInstall removes the package with the old id first, and installs nothi
   assert.deepEqual(removed, []);
   assert.deepEqual(await S.handle('setupInstall', app.id, {}, elevated(r, { removeApp })), { ok: true });
   assert.deepEqual(removed, [S.LEGACY_ID]);
-  assert.deepEqual(order, ['setup status', 'setup uninstall', 'remove', 'setup install']);
+  assert.deepEqual(order, ['setup status', 'setup uninstall', 'remove', 'setup install', 'setup status']);
   // Gone already: nothing to remove.
   await S.handle('setupInstall', app.id, {}, elevated(r, { removeApp }));
   assert.deepEqual(removed, [S.LEGACY_ID]);

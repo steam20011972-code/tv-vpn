@@ -165,11 +165,14 @@ async function start() {
       throw Error(e.message === 'server-not-found' ? e.message : 'invalid-profile');
     }
     C.write('config.json', cfg);
+    // Only a refusal means a bad profile (and turns VPN off). No answer in time, as right after boot, is retried.
+    let valid;
     try {
-      C.command(C.BASE + '/bin/sing-box', ['check', '-c', C.BASE + '/config.json']);
+      valid = await C.verdict(C.BASE + '/bin/sing-box', ['check', '-c', C.BASE + '/config.json']);
     } catch {
-      throw Error('invalid-profile');
+      throw Error('core-check-failed');
     }
+    if (!valid) throw Error('invalid-profile');
     const lease = {
       id: Date.now() + '-' + process.pid,
       supervisor: process.pid,

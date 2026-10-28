@@ -76,9 +76,12 @@ function status(app = APP) {
     lock = readJSON(app + '/core.lock.json', {}),
     appVersion = readJSON(app + '/appinfo.json', {}).version || null;
   const installed = readJSON(BASE + '/installed.json');
+  // The recorded package too: an installed copy from 0.6.x installs without it, and launch.cjs then has no package
+  // to tighten at boot.
   const current =
     !!installed &&
     installed.version === appVersion &&
+    installed.app === path.resolve(app) &&
     installed.coreSha256 === lock.binarySha256 &&
     fs.existsSync(BASE + '/runtime/supervisor.cjs') &&
     fs.existsSync(BASE + '/bin/sing-box');
