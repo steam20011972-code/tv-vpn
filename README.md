@@ -60,6 +60,14 @@ The app follows the TV's language: Russian for Russian, English otherwise.
 
 Homebrew Channel shows when a new version is available: open it → MEDZH VPN → **Update**. The next time you open the app it updates its components by itself; profiles and settings are kept, and a VPN that was on reconnects. The app itself does not check for new versions.
 
+### Upgrading from 0.6.x
+
+Version 0.7.0 has a new app id, `io.github.steam20011972code.tvvpn` (up to 0.6.4 it was `io.github.steam20011972-code.tvvpn`; see [why](docs/ARCHITECTURE.md#why-the-app-id-changed)). The TV treats it as a separate app, so 0.6.x is not offered an update:
+
+1. Install 0.7.0 from Homebrew Channel or [manually](#manual-installation); the old app stays for now.
+2. Open the **new** MEDZH VPN. It removes the old app by itself, then updates the components. Profiles, settings and autostart are kept, and a VPN that was on reconnects.
+3. Do not open the old app while both are installed. If the screen says the old version could not be removed, remove it from the app list and press "Check again".
+
 ### Manual installation
 
 Without the catalog, or to install a specific version:
