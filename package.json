@@ -6,10 +6,13 @@
   "license": "MIT",
   "scripts": {
     "test": "node --test test/*.test.cjs",
-    "build": "node tools/build.cjs"
+    "build": "node tools/build.cjs",
+    "format": "prettier --write \"app/*.js\" \"runtime/*.cjs\" \"tools/*.cjs\" \"test/*.cjs\"",
+    "format:check": "prettier --check \"app/*.js\" \"runtime/*.cjs\" \"tools/*.cjs\" \"test/*.cjs\""
   },
   "devDependencies": {
     "@webos-tools/cli": "3.2.6",
+    "prettier": "3.9.10",
     "ssh2": "1.17.0"
   }
 }

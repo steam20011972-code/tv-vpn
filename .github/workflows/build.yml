@@ -22,6 +22,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: npm run format:check
       # Also downloads the pinned sing-box and verifies the archive, binary and license hashes.
       # Release tags must be signed (secret TVVPN_SIGNING_KEY); other builds are unsigned unless the secret is set.
       - name: Build
