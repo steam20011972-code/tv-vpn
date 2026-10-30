@@ -1,9 +1,14 @@
 'use strict';
 const C = require('./common.cjs');
 // The package the components came from, as setup.cjs recorded it; its modes go back to the installer's at boot.
+// Removed from the TV's app menu without "Remove MEDZH VPN completely", it leaves BASE and the boot hook behind:
+// nothing starts then, since no app is left to turn the VPN off. Installing the app again brings it back.
 if (process.argv[2] === 'boot') {
   const app = (C.read('installed.json') || {}).app;
-  if (typeof app === 'string' && require('path').isAbsolute(app)) require('./secure-app.cjs').securePackage(app);
+  if (typeof app === 'string' && require('path').isAbsolute(app)) {
+    if (!C.fs.existsSync(app + '/appinfo.json')) process.exit(0);
+    require('./secure-app.cjs').securePackage(app);
+  }
 }
 const old = C.read('run/supervisor.json');
 if (old && C.ownedProcess(old.pid, old.identity, C.BASE + '/runtime/supervisor.cjs')) {
