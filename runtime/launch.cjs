@@ -1,18 +1,17 @@
 'use strict';
 const C = require('./common.cjs');
+let mode = process.argv[2] || 'manual';
 // The package the components came from, as setup.cjs recorded it; its modes go back to the installer's at boot.
-// Removed from the TV's app menu without "Remove MEDZH VPN completely", it leaves BASE and the boot hook behind:
-// nothing starts then, since no app is left to turn the VPN off. Installing the app again brings it back.
-if (process.argv[2] === 'boot') {
+// Once the app is removed from the menu the supervisor only puts the network and BASE modes back and exits: no app is
+// left to turn the VPN off. Installing the app again brings it back.
+if (mode === 'boot') {
   const app = (C.read('installed.json') || {}).app;
-  if (typeof app === 'string' && require('path').isAbsolute(app)) {
-    if (!C.fs.existsSync(app + '/appinfo.json')) process.exit(0);
-    require('./secure-app.cjs').securePackage(app);
-  }
+  if (C.appRemoved()) mode = 'removed';
+  else if (typeof app === 'string' && require('path').isAbsolute(app)) require('./secure-app.cjs').securePackage(app);
 }
 const old = C.read('run/supervisor.json');
 if (old && C.ownedProcess(old.pid, old.identity, C.BASE + '/runtime/supervisor.cjs')) {
-  if (process.argv[2] === 'resume') {
+  if (mode === 'resume') {
     let hb = 0;
     try {
       hb = Number(C.fs.readFileSync(C.RUN + '/heartbeat', 'utf8'));
@@ -22,7 +21,7 @@ if (old && C.ownedProcess(old.pid, old.identity, C.BASE + '/runtime/supervisor.c
   } else process.exit(0);
 }
 const log = C.fs.openSync(C.RUN + '/controller.log', 'w', 0o600);
-const child = C.cp.spawn('/usr/bin/node', [C.BASE + '/runtime/supervisor.cjs', process.argv[2] || 'manual'], {
+const child = C.cp.spawn('/usr/bin/node', [C.BASE + '/runtime/supervisor.cjs', mode], {
   detached: true,
   stdio: ['ignore', log, log],
 });

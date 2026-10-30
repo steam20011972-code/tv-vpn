@@ -254,6 +254,9 @@ function reconnect() {
 }
 async function tick() {
   if (busy) return;
+  // Started at boot after the app was removed from the menu (launch.cjs): leave once the recovery above has gone
+  // through; until then the block below retries it.
+  if (mode === 'removed' && !C.read('run/lease.json')) return quit();
   if (switching) {
     reconnect();
     if (!desired) return;

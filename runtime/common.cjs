@@ -227,6 +227,12 @@ function cleanup() {
       } catch {}
   }
 }
+// The package setup.cjs recorded has no appinfo.json: the app was removed from the TV's app menu without "Remove MEDZH
+// VPN completely", which leaves BASE and the boot hook behind.
+function appRemoved() {
+  const app = (read('installed.json') || {}).app;
+  return typeof app === 'string' && path.isAbsolute(app) && !fs.existsSync(app + '/appinfo.json');
+}
 module.exports = {
   fs,
   cp,
@@ -248,4 +254,5 @@ module.exports = {
   harden,
   log,
   cleanup,
+  appRemoved,
 };

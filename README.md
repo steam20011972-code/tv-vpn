@@ -164,7 +164,7 @@ In the app: "Status and diagnostics" → "Remove MEDZH VPN completely", then cho
 
 It disables autostart, stops its own processes, restores DNS and routes, and removes the components. The profile is kept (mode 0600); add `--delete-profile` to remove it too. Then remove the MEDZH VPN icon from the TV app menu.
 
-If you remove the app from the menu first, a VPN that is on stays on until the TV restarts; after that nothing starts, even with autostart on. The components and profiles stay in `/media/developer/tv-vpn` until you install the app again and remove it from inside, or run the command above.
+If you remove the app from the menu first, a VPN that is on stays on until the TV restarts; at the next start the normal network is restored and the VPN does not connect, even with autostart on. The components and profiles stay in `/media/developer/tv-vpn` until you install the app again and remove it from inside, or run the command above.
 
 ## Reporting a problem
 

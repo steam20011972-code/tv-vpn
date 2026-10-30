@@ -1,6 +1,6 @@
 {
   "name": "io.github.steam20011972code.tvvpn.service",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "MEDZH VPN root service",
   "main": "service.js",
   "private": true,

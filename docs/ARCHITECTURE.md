@@ -13,7 +13,7 @@ How MEDZH VPN is put together on a rooted LG webOS TV, what runs as root, what i
 | Supervisor | `runtime/supervisor.cjs` | `BASE/runtime` | root, detached | VPN state machine: connect, health checks every 8 s, fallback to the normal network, retries with back-off up to 5 min, profiles and subscriptions, import page. |
 | Watchdog | `runtime/watchdog.sh` | `BASE/runtime` | root, separate `sh` process per connection | Independent of Node: if the supervisor dies or its heartbeat is older than 12 s, runs `recover.cjs` and `launch.cjs resume`. |
 | Recovery | `runtime/common.cjs` `cleanup()`, `runtime/recover.cjs` | `BASE/runtime` | root | Idempotent removal of exactly what the current lease recorded (below). |
-| Boot hook | `runtime/70-tv-vpn` | `/var/lib/webosbrew/init.d/70-tv-vpn` (0700) | root, at boot (Homebrew Channel) | `launch.cjs boot`: puts the package modes back, starts the supervisor; it connects only if autostart is on. Starts nothing when the recorded app has no `appinfo.json` (removed from the menu). |
+| Boot hook | `runtime/70-tv-vpn` | `/var/lib/webosbrew/init.d/70-tv-vpn` (0700) | root, at boot (Homebrew Channel) | `launch.cjs boot`: puts the package modes back, starts the supervisor; it connects only if autostart is on. When the recorded app has no `appinfo.json` (removed from the menu) the supervisor runs as `removed`: restores the network and `BASE` modes, then exits. |
 | Import server | `runtime/import-server.cjs` | `BASE/runtime` | uid/gid 65532 after `listen` | One-shot LAN page for adding profiles from a phone. |
 | Core | sing-box 1.14.3 `linux-armv7`, pinned in `core.lock.json` | `BASE/bin/sing-box` (0700) | root | TUN `tvvpn0`, routing rules, DoH inside the tunnel, local DNS listener. |
 
@@ -112,7 +112,7 @@ Connecting refuses (`route-conflict`, `address-conflict`) when any of these alre
 1. In the app, "Status and diagnostics" → "Remove MEDZH VPN completely" (`setupUninstall`), or over SSH `node BASE/runtime/uninstall.cjs [--delete-profile]`. It turns autostart off, stops the supervisor, core and watchdog, restores routes and DNS, removes the boot hook and the files in the table above, and keeps profiles and `device-id` unless asked to delete them. The `BASE` directory itself is kept. Stopping and removal are idempotent.
 2. Remove the app from the TV's app menu (or Homebrew Channel). The webOS installer deletes the app, the service and all Luna files, including those from `elevate-service`.
 
-Removing the app from the menu without step 1 leaves `BASE` and the boot hook. A connection already running stays up until it is stopped over SSH or the TV restarts; from the next boot the hook finds no `appinfo.json` in the package recorded in `installed.json` and starts nothing, autostart or not (from 0.7.2). Installing the app again brings everything back with the profiles.
+Removing the app from the menu without step 1 leaves `BASE` and the boot hook. A connection already running stays up until it is stopped over SSH or the TV restarts; from the next boot the hook finds no `appinfo.json` in the package recorded in `installed.json` and starts the supervisor as `removed`, autostart or not (from 0.7.2). It gives `BASE` its 0700/0600 modes back, removes what the last lease recorded (ConnMan keeps the DNS server the tunnel set across a reboot, so without this the TV has no DNS), retrying while ConnMan is not ready, and exits without connecting. `preferences.json` is not changed. Installing the app again brings everything back with the profiles.
 
 ## Why the app id changed
 

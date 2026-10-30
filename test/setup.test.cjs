@@ -85,15 +85,17 @@ test('an install without the package path (as a 0.6.x copy writes it), or with a
   C.write('installed.json', saved);
   assert.equal(setup.status(app).current, true);
 });
-test('the boot hook starts nothing once the app was removed from the TV menu', () => {
+test('the app counts as removed only when the recorded package has no appinfo.json', () => {
   const saved = C.read('installed.json');
+  assert.equal(C.appRemoved(), false);
   const gone = fakeApp('gone');
   fs.rmSync(gone, { recursive: true });
   C.write('installed.json', { ...saved, app: path.resolve(gone) });
-  fs.rmSync(C.RUN + '/controller.log', { force: true });
-  const r = cp.spawnSync(process.execPath, [BASE + '/runtime/launch.cjs', 'boot'], { env: process.env });
-  assert.equal(r.status, 0);
-  assert.ok(!fs.existsSync(C.RUN + '/controller.log'), 'supervisor launched');
+  assert.equal(C.appRemoved(), true);
+  // Written by a 0.6.x copy: no package to check, so boot goes on as before.
+  const { app: _, ...without } = saved;
+  C.write('installed.json', without);
+  assert.equal(C.appRemoved(), false);
   C.write('installed.json', saved);
 });
 test('core whose hash differs from core.lock.json is rejected before anything is replaced', () => {
